@@ -63,6 +63,14 @@ class RequestValidationTest {
     }
 
     @Test
+    void rejectsPasswordsExceedingBcryptByteLimit() {
+        var request = new UserRegistrationRequest("person@example.com", "é".repeat(40));
+
+        assertThat(validator.validate(request)).anySatisfy(violation ->
+                assertThat(violation.getPropertyPath().toString()).isEqualTo("passwordWithinByteLimit"));
+    }
+
+    @Test
     void doesNotSerializeOrPrintRegistrationPassword() throws Exception {
         var mapper = new ObjectMapper();
         var request = mapper.readValue(
@@ -84,5 +92,14 @@ class RequestValidationTest {
 
         assertThat(json.has("passwordHash")).isFalse();
         assertThat(json.toString()).doesNotContain(user.getPasswordHash());
+    }
+
+    @Test
+    void csrfTokenIsAvailableToClientWithoutAppearingInToString() {
+        var response = new CsrfTokenResponse("X-XSRF-TOKEN", "test-only-csrf-token");
+        var json = new ObjectMapper().valueToTree(response);
+
+        assertThat(json.get("token").asText()).isEqualTo(response.token());
+        assertThat(response.toString()).doesNotContain(response.token());
     }
 }
