@@ -1,0 +1,17 @@
+target/
+.env
+.env.*
+!.env.example
+.tools/
+.run/
+SMART_HEALTHCARE_CODEX_PROMPT.md
+postman/
+.codex/
+.mcp.json
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+*.log

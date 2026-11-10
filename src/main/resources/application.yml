@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: smart-healthcare
+  config:
+    import: optional:file:./.env[.properties]
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:smart_healthcare}
+    username: ${POSTGRES_USER:healthcare}
+    password: ${POSTGRES_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  data:
+    mongodb:
+      host: ${MONGO_HOST:localhost}
+      port: ${MONGO_PORT:27017}
+      database: ${MONGO_DATABASE:smart_healthcare}
+      username: ${MONGO_USERNAME:healthcare}
+      password: ${MONGO_PASSWORD}
+      authentication-database: admin
+  jackson:
+    time-zone: UTC
+  security:
+    user:
+      name: ${BOOTSTRAP_USERNAME:setup}
+      password: ${BOOTSTRAP_PASSWORD}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
