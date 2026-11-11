@@ -1,6 +1,6 @@
 # Smart Healthcare Appointment System
 
-A university project built step by step as a Spring Boot 3 REST API. There is no frontend. **Current phase: 6 (MongoDB clinical documents).** The API supports authentication, doctor/patient management, appointment scheduling, prescriptions, and medical records, with role and ownership checks.
+A university project built step by step as a Spring Boot 3 REST API. There is no frontend. **Current phase: 7 (local chatbot).** The API supports authentication, doctor/patient management, appointments, prescriptions, medical records, and role-based workflow guidance.
 
 ## Prerequisites
 
@@ -103,6 +103,8 @@ src/main/java/com/smarthealthcare/
     DoctorSlot.java, Appointment.java, AppointmentStatus.java
   document/
     Medicine.java, Prescription.java, MedicalRecord.java
+  chatbot/
+    ChatbotService.java, StubChatbotService.java
   repository/
     UserRepository.java, DoctorRepository.java, PatientRepository.java
     DoctorSlotRepository.java, AppointmentRepository.java
@@ -116,6 +118,7 @@ src/main/java/com/smarthealthcare/
     CreateDoctorSlotRequest.java, BookAppointmentRequest.java
     CreatePrescriptionRequest.java, UpdatePrescriptionRequest.java, PrescriptionResponse.java
     CreateMedicalRecordRequest.java, UpdateMedicalRecordRequest.java, MedicalRecordResponse.java
+    ChatbotRequest.java, ChatbotResponse.java
   config/
     SecurityConfig.java, AdminInitializer.java, MongoConfig.java
   security/
@@ -126,6 +129,7 @@ src/main/java/com/smarthealthcare/
     AuthController.java, DoctorController.java, PatientController.java
     DoctorSlotController.java, AppointmentController.java
     PrescriptionController.java, MedicalRecordController.java
+    ChatbotController.java
   service/
     DoctorService.java, PatientService.java, UserAccountService.java
     DoctorSlotService.java, AppointmentService.java
@@ -148,9 +152,10 @@ src/test/java/com/smarthealthcare/
   service/UserAccountServiceTest.java
   service/AppointmentServiceTest.java, service/PrescriptionServiceTest.java
   service/MedicalRecordServiceTest.java
+  chatbot/StubChatbotServiceTest.java, controller/ChatbotIntegrationTest.java
 ```
 
-The remaining packages (`aop` and `chatbot`) will be added when their first class is needed.
+The `aop` package will be added when its first class is needed.
 
 ## Phase 2: relational model
 
@@ -515,7 +520,64 @@ In Postman:
 5. Try another patient, another doctor, and ADMIN. They cannot read or update that document. Patients cannot create clinical documents.
 6. Try a booked/cancelled appointment (`409`), mismatched record patient (`400`), invalid nested content (`400`), and missing document (`404` for an authorized role).
 
-The full Maven suite has 147 passing tests. The new tests exercise both real databases, author/patient boundaries, optional appointment references, input validation, timestamps/indexes, stale client versions, and competing MongoDB document copies. Mockito service tests cover creation, authorization failures, updates, and stale versions. PostgreSQL fixtures roll back; MongoDB writes are independent and are explicitly removed only for the tests' unique fixture patient IDs. Both databases must be running before `verify`.
+The clinical document tests exercise both real databases, author/patient boundaries, optional appointment references, input validation, timestamps/indexes, stale client versions, and competing MongoDB document copies. Mockito service tests cover creation, authorization failures, updates, and stale versions. PostgreSQL fixtures roll back; MongoDB writes are independent and are explicitly removed only for the tests' unique fixture patient IDs. Both databases must be running before `verify`.
+
+## Phase 7: local chatbot
+
+### Service boundary and role selection
+
+`ChatbotController` depends on the `ChatbotService` interface. Spring injects the single `@Service` implementation, `StubChatbotService`, through its constructor. This keeps chatbot behavior behind a service boundary while the controller handles HTTP input and validation. A future provider can implement the same interface without changing the controller contract.
+
+The stub selects a response strategy with a switch on the authenticated account's PostgreSQL role. It uses simple English keyword checks and returns static workflow instructions:
+
+| Role | Supported topics |
+| --- | --- |
+| ADMIN | Managing doctors, registering/managing patients, creating slots |
+| DOCTOR | Viewing/completing appointments, creating/updating prescriptions and medical records |
+| PATIENT | Doctor search, booking/cancellation, profile updates, prescription and record history |
+
+Matching ignores letter case and surrounding whitespace. An unrecognized message returns help for the caller's role. This is a local stub, with no language model, API key, conversation storage, external requests, or access to appointment/clinical content. The account lookup is used only to establish the caller's role. Replies do not echo submitted messages, and request/response diagnostic strings omit message content.
+
+Role-specific replies describe how to use the API; they do not execute actions. Existing endpoint authorization still applies when the user follows the guidance. Body fields such as `role`, `model`, or `patientId` cannot change the server-selected role or request medical data. A future external provider must retain server-side role checks and explicitly decide what information may be sent; clinical data is not automatically included.
+
+### Endpoint and example
+
+POST `/api/chatbot/messages` accepts ADMIN, DOCTOR, and PATIENT accounts. Use Basic Auth and a fresh CSRF cookie/token from GET `/api/auth/csrf`. Send `Content-Type: application/json`:
+
+```json
+{"message":"How do I book an appointment?"}
+```
+
+As PATIENT, expect `200` with:
+
+```json
+{
+  "role": "PATIENT",
+  "reply": "View available slots with GET /api/doctors/{doctorId}/slots, then POST /api/appointments with a slotId. GET /api/appointments/me lists your appointments. An occupied slot returns 409 Conflict."
+}
+```
+
+Messages must contain 1–1,000 characters and cannot be blank. Invalid messages return `400` with a `fieldErrors.message` entry; malformed JSON returns `400` with `Invalid request body`. Missing/invalid credentials or a disabled account return `401` when the CSRF token is valid. Missing/invalid CSRF returns `403`. GET on this path and unimplemented chatbot paths remain denied.
+
+### Verify Phase 7
+
+Restart the updated application after running the tests:
+
+```powershell
+docker compose up -d --wait
+.\mvnw.cmd verify
+.\mvnw.cmd spring-boot:run
+```
+
+In Postman, fetch a CSRF token and POST a message as each role:
+
+1. ADMIN: `manage doctors`, `register a patient`, or `create a slot`.
+2. DOCTOR: `list appointments`, `create a prescription`, or `update a medical record`.
+3. PATIENT: `find a doctor`, `book an appointment`, `cancel my appointment`, or `my medical records`.
+4. As PATIENT, send `{"message":"manage doctors","role":"ADMIN"}`. The response still reports `PATIENT` and gives patient doctor-search guidance.
+5. Send a blank or oversized message (`400`), omit the CSRF header (`403`), or omit authentication while keeping a valid CSRF token (`401`).
+
+The full Maven suite has 183 passing tests. The 36 new chatbot tests cover keyword selection, fallback replies, input boundaries, role overrides, disabled accounts, authentication, real CSRF handling, unsupported routes, method security, and omission of private input/account data from replies. Their account fixtures roll back. This phase adds no dependencies, environment variables, or database structures.
 
 ## Common setup errors
 
@@ -534,4 +596,4 @@ The full Maven suite has 147 passing tests. The new tests exercise both real dat
 - **A profile request returns `403`:** check the caller's role and patient ownership/appointment relationship. Admin credentials do not grant a doctor's or patient's personal `/me` profile.
 - **An unsafe request reports a CSRF error:** fetch `/api/auth/csrf` using the same host, keep its cookie, and send the returned token in `X-XSRF-TOKEN`. A valid token still cannot enable an unimplemented route.
 
-Confirm Phase 6 works before starting Phase 7 (the chatbot service boundary).
+Confirm Phase 7 works before starting Phase 8 (AOP logging, Spring lifecycle/scopes, and doctor caching).
