@@ -1,5 +1,6 @@
 package com.smarthealthcare.repository;
 
+import com.smarthealthcare.config.DoctorCacheConfig;
 import com.smarthealthcare.entity.Appointment;
 import com.smarthealthcare.entity.AppointmentStatus;
 import com.smarthealthcare.entity.Doctor;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.time.Instant;
@@ -25,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest(showSql = false, properties = "spring.jpa.hibernate.ddl-auto=validate")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(DoctorCacheConfig.class)
 class RelationalModelTest {
 
     private static final Instant START_TIME = Instant.parse("2030-01-07T10:00:00Z");

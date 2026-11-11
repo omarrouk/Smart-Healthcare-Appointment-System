@@ -13,6 +13,9 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
+        cache:
+          use_second_level_cache: ${DOCTOR_CACHE_ENABLED:true}
+          use_query_cache: false
         jdbc:
           time_zone: UTC
   data:
@@ -28,11 +31,21 @@ spring:
     time-zone: UTC
 
 app:
+  cache:
+    doctors:
+      max-entries: ${DOCTOR_CACHE_MAX_ENTRIES:1000}
+      ttl-seconds: ${DOCTOR_CACHE_TTL_SECONDS:300}
   bootstrap:
     admin:
       enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
       email: ${BOOTSTRAP_ADMIN_EMAIL:}
       password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+
+logging:
+  level:
+    healthcare.appointments: INFO
+    healthcare.prescriptions: INFO
+    healthcare.cache: INFO
 
 server:
   port: ${SERVER_PORT:8080}

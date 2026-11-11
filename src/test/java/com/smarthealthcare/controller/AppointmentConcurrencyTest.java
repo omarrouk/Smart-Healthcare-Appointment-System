@@ -126,6 +126,33 @@ class AppointmentConcurrencyTest {
                 .isIn(AppointmentStatus.CANCELLED, AppointmentStatus.COMPLETED);
     }
 
+    @Test
+    void concurrentCancellationAndRebookingPreserveHistoryAndOneActiveBooking() throws Exception {
+        Long originalId = new TransactionTemplate(transactionManager).execute(transaction ->
+                appointments.saveAndFlush(new Appointment(slot, patient)).getId());
+        var patientToken = csrf(patient.getUser());
+        var otherToken = csrf(otherPatient.getUser());
+
+        List<Integer> responses = race(
+                () -> mvc.perform(patch("/api/appointments/{id}/cancel", originalId)
+                                .with(httpBasic(patient.getUser().getEmail(), PASSWORD)).with(patientToken))
+                        .andReturn().getResponse().getStatus(),
+                () -> book(otherPatient.getUser(), otherToken));
+
+        assertThat(responses.get(0)).isEqualTo(200);
+        assertThat(responses.get(1)).isIn(201, 409);
+        if (responses.get(1) == 409) {
+            assertThat(book(otherPatient.getUser(), csrf(otherPatient.getUser()))).isEqualTo(201);
+        }
+        var history = appointments.findBySlotDoctorIdOrderBySlotStartTimeAsc(doctor.getId());
+        assertThat(history).hasSize(2);
+        assertThat(history).filteredOn(appointment -> appointment.getId().equals(originalId))
+                .singleElement().extracting(Appointment::getStatus).isEqualTo(AppointmentStatus.CANCELLED);
+        assertThat(history).filteredOn(appointment -> appointment.getStatus() == AppointmentStatus.BOOKED)
+                .singleElement().satisfies(appointment ->
+                        assertThat(appointment.getPatient().getId()).isEqualTo(otherPatient.getId()));
+    }
+
     private int book(User user, RequestPostProcessor token) throws Exception {
         return mvc.perform(post("/api/appointments").with(httpBasic(user.getEmail(), PASSWORD)).with(token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"slotId\":" + slot.getId() + "}"))
