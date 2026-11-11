@@ -63,6 +63,14 @@ public class Appointment {
         return status;
     }
 
+    public void cancel() {
+        status = AppointmentStatus.CANCELLED;
+    }
+
+    public void complete() {
+        status = AppointmentStatus.COMPLETED;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }

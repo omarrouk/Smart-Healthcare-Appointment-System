@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -67,6 +68,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     ResponseEntity<ApiError> invalidParameter(HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, "Invalid request parameter", request);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ApiError> invalidBody(HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "Invalid request body", request);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

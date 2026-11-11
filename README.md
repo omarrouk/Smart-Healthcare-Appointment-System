@@ -1,6 +1,6 @@
 # Smart Healthcare Appointment System
 
-A university project built step by step as a Spring Boot 3 REST API. There is no frontend. **Current phase: 4 (doctors and patients).** The API supports database-backed authentication, role/ownership checks, admin CRUD for doctors/patients, patient profile updates, and doctor specialty search. Slot management and appointment operations follow in Phase 5.
+A university project built step by step as a Spring Boot 3 REST API. There is no frontend. **Current phase: 5 (appointments).** The API supports database-backed authentication, role/ownership checks, doctor/patient management, specialty search, available slots, booking, cancellation, and completion.
 
 ## Prerequisites
 
@@ -321,7 +321,7 @@ Choose your own unique local passwords; the examples are placeholders. The serve
 
 Update a doctor with `{"name":"Updated Doctor","specialty":"Neurology"}`. Update a patient with `{"name":"Updated Patient","phone":"12345"}`. Names and specialties are trimmed. Phone is optional; null or blank clears it. These updates do not change the email, password, enabled flag, or role. Empty names/specialties and oversized values return `400` with field errors. Missing profiles return `404` for authorized callers.
 
-Doctor search returns only `id`, `name`, and `specialty`, without account IDs, login emails, or password hashes. Omit the specialty parameter to list all doctors. A blank or overlong specialty is rejected with `400`; an unknown specialty returns an empty list. Available-slot management remains in Phase 5.
+Doctor search returns only `id`, `name`, and `specialty`, without account IDs, login emails, or password hashes. Omit the specialty parameter to list all doctors. A blank or overlong specialty is rejected with `400`; an unknown specialty returns an empty list.
 
 ### Transactions and deletion rules
 
@@ -343,6 +343,70 @@ In Postman, authenticate as ADMIN, GET `/api/auth/csrf`, then POST a doctor/pati
 
 The tests cover registration and BCrypt login, server-assigned roles, nested validation, duplicate emails, search privacy, persisted updates, self-update restrictions, deletion/account removal, history protection across all appointment statuses, and service-level permissions. They use the actual CSRF endpoint rather than replacing the filter's cookie repository. Their fixture data rolls back. Phase 4 adds no dependencies or schema migrations.
 
+## Phase 5: appointments
+
+### Slots and endpoints
+
+Admins create individual 30-minute slots. Start times must be in the future, on a UTC half-hour boundary, with no fractional seconds. For example, `10:00:00Z` and `10:30:00Z` are valid; `10:15:00Z` is not. Send an ISO-8601 timestamp with `Z` or an explicit offset; responses use UTC. The server calculates the end time. Slots cannot be moved or resized; delete an unused slot and create another instead.
+
+All write requests require Basic Auth and a fresh CSRF cookie/token from GET `/api/auth/csrf`. Keep the cookie and send the returned token under its `headerName`, normally `X-XSRF-TOKEN`.
+
+| Method and path | Access | Result |
+| --- | --- | --- |
+| POST `/api/doctors/{doctorId}/slots` | ADMIN | Create a slot; `201` |
+| GET `/api/doctors/{doctorId}/slots` | ADMIN, PATIENT, or the owning DOCTOR | Future, unoccupied slots ordered by start time; `200` |
+| DELETE `/api/doctors/{doctorId}/slots/{slotId}` | ADMIN | Delete a slot without appointment history; `204` |
+| POST `/api/appointments` | PATIENT | Book a slot for the signed-in patient; `201` with `Location` |
+| GET `/api/appointments/me` | PATIENT or DOCTOR | Only the caller's appointments, including history; `200` |
+| GET `/api/appointments/{appointmentId}` | Owning PATIENT or DOCTOR | Read one appointment; `200` |
+| PATCH `/api/appointments/{appointmentId}/cancel` | Owning PATIENT | Change `BOOKED` to `CANCELLED`; `200` |
+| PATCH `/api/appointments/{appointmentId}/complete` | Owning DOCTOR | Change `BOOKED` to `COMPLETED`; `200` |
+
+Create a slot as ADMIN, choosing a future date:
+
+```json
+{"startTime":"2030-01-07T10:00:00Z"}
+```
+
+Book it as PATIENT using the returned slot ID:
+
+```json
+{"slotId":123}
+```
+
+The booking body does not select a patient, doctor, time, or status. Those values come from the authenticated account and stored slot. Cancel and complete requests have no body. Appointment responses contain IDs, times, status, and creation time; they do not expose account credentials.
+
+Only `BOOKED` appointments can change status. Repeated cancellation/completion, completing a cancelled appointment, and cancelling a completed appointment return `409`. Completion is the doctor's explicit confirmation; this version imposes no additional time-based cutoff for completion or cancellation. Cancellation frees a future slot for a new booking while keeping the original appointment. Completed slots stay occupied. Past slots and slots belonging to disabled doctors are unavailable for new bookings.
+
+Admins manage schedules but cannot book or read clinical appointments through these endpoints. An unrelated patient or doctor receives `403`; authorized lookups of missing resources return `404`. Invalid bodies, timestamps, and unaligned slot starts return `400`. Duplicate slots, occupied slots, invalid status transitions, and attempts to delete appointment history return `409`.
+
+### Concurrent requests
+
+The existing PostgreSQL partial unique index, `uq_appointments_occupied_slot`, allows only one `BOOKED` or `COMPLETED` appointment per slot. The availability check gives a helpful early conflict, while the index also handles requests that check availability simultaneously. A database uniqueness failure becomes a safe `409` JSON response. Fixed half-hour alignment and the unique doctor/start-time constraint prevent overlapping slots for a doctor.
+
+Cancellation and completion load the appointment with `@Lock(PESSIMISTIC_WRITE)` inside a write transaction. PostgreSQL locks that row until commit. A competing status change then reads the committed status and receives `409`, rather than overwriting it. Slot deletion is blocked by any appointment history, including cancelled appointments; foreign keys also protect against concurrent deletion/booking conflicts. No schema migration or dependency was added in this phase.
+
+### Verify Phase 5
+
+Stop the previous application instance, then run:
+
+```powershell
+docker compose up -d --wait
+.\mvnw.cmd verify
+.\mvnw.cmd spring-boot:run
+```
+
+In Postman, use a development doctor and two patients:
+
+1. As ADMIN, create a future slot. Expect `201`; repeating the same doctor/start time returns `409`.
+2. As PATIENT, read availability and book the slot. Expect `201` and `BOOKED`. Booking the same slot as the second patient returns `409`.
+3. Read `/api/appointments/me` as the patient and doctor. Each sees only their own appointments. An unrelated account cannot read or change the booking.
+4. Cancel as the original patient. Expect `CANCELLED`, then book the released slot as the second patient. The old cancelled appointment stays in history.
+5. Complete the new booking as its doctor. Expect `COMPLETED`. Cancellation and another booking now return `409`.
+6. Attempt to delete the used slot, patient, or doctor as ADMIN. Expect `409`; history is preserved.
+
+These requests retain appointment history intentionally. Use dedicated development accounts. The Maven suite has 111 tests, including Mockito booking checks, API validation/ownership checks, and two real PostgreSQL concurrency tests. One races two patients for a slot and expects exactly one `201` and one `409`; the other races cancellation against completion and expects one `200` and one `409`. Normal integration fixtures roll back. The concurrency tests commit their own unique fixtures so separate request transactions can see them, then remove only those fixtures.
+
 ## Common setup errors
 
 - **Docker cannot connect to its engine:** start Docker Desktop, select Linux containers, and wait until `docker info` succeeds.
@@ -359,4 +423,4 @@ The tests cover registration and BCrypt login, server-assigned roles, nested val
 - **A profile request returns `403`:** check the caller's role and patient ownership/appointment relationship. Admin credentials do not grant a doctor's or patient's personal `/me` profile.
 - **An unsafe request reports a CSRF error:** fetch `/api/auth/csrf` using the same host, keep its cookie, and send the returned token in `X-XSRF-TOKEN`. A valid token still cannot enable an unimplemented route.
 
-Confirm Phase 4 works before starting Phase 5 (slot management, booking, cancellation, and completion).
+Confirm Phase 5 works before starting Phase 6 (MongoDB prescriptions and medical records).
