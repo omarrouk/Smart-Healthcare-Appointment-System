@@ -1,6 +1,6 @@
 # Smart Healthcare Appointment System
 
-A university project built step by step as a Spring Boot 3 REST API. There is no frontend. **Current phase: 5 (appointments).** The API supports database-backed authentication, role/ownership checks, doctor/patient management, specialty search, available slots, booking, cancellation, and completion.
+A university project built step by step as a Spring Boot 3 REST API. There is no frontend. **Current phase: 6 (MongoDB clinical documents).** The API supports authentication, doctor/patient management, appointment scheduling, prescriptions, and medical records, with role and ownership checks.
 
 ## Prerequisites
 
@@ -81,7 +81,7 @@ Spring reads `.env` as a properties file using `spring.config.import`; Docker Co
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` | Required only when bootstrapping an administrator into a database with no admin account |
 | `SERVER_PORT` | `8080` |
 
-Compose databases bind to `127.0.0.1` only and keep data in named volumes. Their initialization users are for local development. Do not reuse these accounts as production application users. MongoDB creates the application database on the first write, so an empty database need not appear yet. Flyway creates the relational tables; `ddl-auto: validate` checks the entity mappings without changing the schema.
+Compose databases bind to `127.0.0.1` only and keep data in named volumes. Their initialization users are for local development. Do not reuse these accounts as production application users. MongoDB creates the clinical collections and their history indexes at application startup. Flyway creates the relational tables; `ddl-auto: validate` checks the entity mappings without changing the schema.
 
 Java appointment times use `Instant`, PostgreSQL stores them as `TIMESTAMP WITH TIME ZONE`, and Jackson/Hibernate use UTC. API timestamps use ISO 8601 with a `Z` suffix. Clients convert them to local time for display.
 
@@ -91,7 +91,7 @@ Java appointment times use `Instant`, PostgreSQL stores them as `TIMESTAMP WITH 
 - A **starter** is a compatible group of dependencies. Web supplies Spring MVC and embedded Tomcat; JPA supplies Hibernate and relational persistence; MongoDB supplies document persistence; Security protects requests; Validation validates input; AOP supports method interception later.
 - Spring's **application context** creates and connects objects called beans. Services, controllers, and security components receive their dependencies through constructors.
 - Actuator is the one setup addition: its health endpoint lets us verify the application and both database connections without inventing a business endpoint.
-- `spring-boot-starter-test` includes JUnit 5, Mockito, and Spring Boot testing utilities. The current tests cover DTO validation, persistence constraints, administrator initialization, and authenticated HTTP requests. Booking service and concurrency tests will follow with their respective phases.
+- `spring-boot-starter-test` includes JUnit 5, Mockito, and Spring Boot testing utilities. Tests cover validation, persistence, authentication, ownership, profile management, concurrent bookings, and MongoDB clinical documents.
 
 ## Package layout
 
@@ -101,24 +101,35 @@ src/main/java/com/smarthealthcare/
   entity/
     User.java, Role.java, Doctor.java, Patient.java
     DoctorSlot.java, Appointment.java, AppointmentStatus.java
+  document/
+    Medicine.java, Prescription.java, MedicalRecord.java
   repository/
     UserRepository.java, DoctorRepository.java, PatientRepository.java
     DoctorSlotRepository.java, AppointmentRepository.java
+    PrescriptionRepository.java, MedicalRecordRepository.java
   dto/
     UserRegistrationRequest.java, CreateDoctorRequest.java, CreatePatientRequest.java
     UserResponse.java, DoctorResponse.java, PatientResponse.java
     DoctorSlotResponse.java, AppointmentResponse.java
     ApiError.java, CsrfTokenResponse.java
     UpdateDoctorRequest.java, UpdatePatientRequest.java, DoctorSummaryResponse.java
+    CreateDoctorSlotRequest.java, BookAppointmentRequest.java
+    CreatePrescriptionRequest.java, UpdatePrescriptionRequest.java, PrescriptionResponse.java
+    CreateMedicalRecordRequest.java, UpdateMedicalRecordRequest.java, MedicalRecordResponse.java
   config/
-    SecurityConfig.java, AdminInitializer.java
+    SecurityConfig.java, AdminInitializer.java, MongoConfig.java
   security/
     DatabaseUserDetailsService.java, CurrentUser.java
     AccessControlService.java, SecurityErrorHandler.java
+    ClinicalAccessService.java
   controller/
     AuthController.java, DoctorController.java, PatientController.java
+    DoctorSlotController.java, AppointmentController.java
+    PrescriptionController.java, MedicalRecordController.java
   service/
     DoctorService.java, PatientService.java, UserAccountService.java
+    DoctorSlotService.java, AppointmentService.java
+    PrescriptionService.java, MedicalRecordService.java
   exception/
     ResourceNotFoundException.java, GlobalExceptionHandler.java
     ResourceConflictException.java, InvalidRequestException.java
@@ -132,10 +143,14 @@ src/test/java/com/smarthealthcare/
   security/DatabaseUserDetailsServiceTest.java
   security/SecurityIntegrationTest.java
   controller/ProfileManagementIntegrationTest.java
+  controller/AppointmentIntegrationTest.java, controller/AppointmentConcurrencyTest.java
+  controller/ClinicalDocumentsIntegrationTest.java
   service/UserAccountServiceTest.java
+  service/AppointmentServiceTest.java, service/PrescriptionServiceTest.java
+  service/MedicalRecordServiceTest.java
 ```
 
-The remaining packages (`document`, `aop`, and `chatbot`) will be added when their first class is needed.
+The remaining packages (`aop` and `chatbot`) will be added when their first class is needed.
 
 ## Phase 2: relational model
 
@@ -229,7 +244,7 @@ Spring supplies `Authentication` through `SecurityContextHolder` for the current
 | GET `/api/patients/me` | `PATIENT`; its own profile |
 | GET `/api/patients/{patientId}` | `ADMIN`, the owning `PATIENT`, or a `DOCTOR` with a `BOOKED`/`COMPLETED` appointment for that patient |
 
-`@EnableMethodSecurity` activates `@PreAuthorize` checks on services. The patient lookup calls `AccessControlService` before returning a profile, so knowing another patient's ID does not grant access. A cancelled appointment alone does not establish a doctor/patient relationship. Completed appointments preserve access to the patient profile for follow-up care. Admin profile access does not imply access to medical records; those permissions will be implemented with MongoDB endpoints in Phase 6.
+`@EnableMethodSecurity` activates `@PreAuthorize` checks on services. The patient lookup calls `AccessControlService` before returning a profile, so knowing another patient's ID does not grant access. A cancelled appointment alone does not establish a doctor/patient relationship. Completed appointments preserve access to the patient profile for follow-up care. Admin profile access does not grant access to clinical documents; their Phase 6 routes are restricted to the patient and authoring doctor.
 
 There is no public registration or role-change endpoint. Admin creation of doctor/patient accounts and CRUD/search are described in Phase 4 below. An account with a clinical role but no corresponding profile receives `404` from its `/me` profile endpoint.
 
@@ -405,7 +420,102 @@ In Postman, use a development doctor and two patients:
 5. Complete the new booking as its doctor. Expect `COMPLETED`. Cancellation and another booking now return `409`.
 6. Attempt to delete the used slot, patient, or doctor as ADMIN. Expect `409`; history is preserved.
 
-These requests retain appointment history intentionally. Use dedicated development accounts. The Maven suite has 111 tests, including Mockito booking checks, API validation/ownership checks, and two real PostgreSQL concurrency tests. One races two patients for a slot and expects exactly one `201` and one `409`; the other races cancellation against completion and expects one `200` and one `409`. Normal integration fixtures roll back. The concurrency tests commit their own unique fixtures so separate request transactions can see them, then remove only those fixtures.
+These requests retain appointment history intentionally. Use dedicated development accounts. Tests include Mockito booking checks, API validation/ownership checks, and two real PostgreSQL concurrency tests. One races two patients for a slot and expects exactly one `201` and one `409`; the other races cancellation against completion and expects one `200` and one `409`. Normal integration fixtures roll back. The concurrency tests commit their own unique fixtures so separate request transactions can see them, then remove only those fixtures.
+
+## Phase 6: prescriptions and medical records
+
+### Storage and authorization
+
+`Prescription` and `MedicalRecord` are MongoDB `@Document` classes. Their repositories extend `MongoRepository`, which provides document persistence independently of JPA. Documents store numeric PostgreSQL doctor, patient, and appointment IDs as references. Medicines are embedded values with `name`, `dosage`, and optional `instructions`; lab results are simple metadata strings. There are no uploads or cross-database joins.
+
+Clinical creation requires a **completed appointment owned by the signed-in doctor**. A prescription derives its doctor and patient from that appointment. A medical record includes a patient ID and may omit the appointment ID; in that case, the doctor must already have a completed appointment with that patient. If supplied, the appointment must belong to the same patient and doctor. Booked or cancelled appointments cannot authorize clinical creation.
+
+Completion is used because it is terminal: cancellation cannot invalidate the relationship after authorization. `ClinicalAccessService` checks PostgreSQL within a short read-only JPA transaction and returns only IDs. The clinical services then write to MongoDB. They do not write relational data or use distributed transactions. Each MongoDB document update is atomic; this also works with the standalone MongoDB container already in Compose.
+
+Only the authoring doctor can update or read a document as DOCTOR, including when another doctor has also treated that patient. Patients can read all their own documents and cannot edit them. ADMIN has no clinical document access. Doctor history lists contain only that doctor's authored documents; patient history lists contain only that patient's documents. Lists are ordered newest first, with document ID as a tie breaker. Author, patient, appointment, and creation time are fixed after creation. Clinical deletion routes are not exposed, and the existing appointment-history rules prevent deleting referenced accounts or slots.
+
+### Endpoints and bodies
+
+All routes require Basic Auth. POST and PUT also require a fresh CSRF cookie/token, just like the appointment routes.
+
+| Method and path | Access | Result |
+| --- | --- | --- |
+| POST `/api/prescriptions` | Appointment's DOCTOR | Create a prescription; `201` with `Location` |
+| GET `/api/prescriptions/me` | PATIENT or DOCTOR | Own patient history or authored history; `200` |
+| GET `/api/prescriptions/{prescriptionId}` | Owning PATIENT or authoring DOCTOR | Read one; `200` |
+| PUT `/api/prescriptions/{prescriptionId}` | Authoring DOCTOR | Replace medicines/notes with version check; `200` |
+| POST `/api/medical-records` | Relevant DOCTOR | Create a medical record; `201` with `Location` |
+| GET `/api/medical-records/me` | PATIENT or DOCTOR | Own patient history or authored history; `200` |
+| GET `/api/medical-records/{recordId}` | Owning PATIENT or authoring DOCTOR | Read one; `200` |
+| PUT `/api/medical-records/{recordId}` | Authoring DOCTOR | Replace clinical content with version check; `200` |
+
+Create a prescription using a completed appointment ID:
+
+```json
+{
+  "appointmentId": 123,
+  "medicines": [
+    {"name": "Example medicine", "dosage": "Example dosage", "instructions": "Example instructions"}
+  ],
+  "notes": "Example consultation notes"
+}
+```
+
+Create a medical record for the same patient:
+
+```json
+{
+  "patientId": 45,
+  "appointmentId": 123,
+  "medicines": [],
+  "notes": "Example follow-up notes",
+  "labResults": ["Example lab result metadata"]
+}
+```
+
+Replace the example IDs with actual IDs from your development accounts. Prescription notes are optional, but prescriptions require 1–20 medicines. Medical record notes are required; its medicines and lab results arrays are required but may be empty, with at most 20 items each. Notes are limited to 4,000 characters. Medicine names, dosages, and instructions are limited to 150, 100, and 500 characters respectively; each lab metadata string is limited to 500 characters. Nested medicine entries cannot be null. Use synthetic content for local testing.
+
+Responses include a MongoDB string `id`, relational IDs, content, UTC `createdAt`/`updatedAt`, and `version`. For an update, send the latest version from GET and all editable content fields:
+
+```json
+{
+  "version": 0,
+  "medicines": [],
+  "notes": "Updated example record",
+  "labResults": []
+}
+```
+
+This is a medical record update. Prescription updates use `version`, a nonempty `medicines` array, and optional `notes`; they do not include `labResults`. Identity/reference fields in an update cannot move the document to another author, patient, or appointment. A stale version returns `409` with `Document changed; reload it before updating`. Read the latest document, reconcile your edits, then resend its current version.
+
+### Spring Data concepts
+
+`@EnableMongoAuditing`, `@CreatedDate`, and `@LastModifiedDate` populate timestamps when saving documents. The date provider uses UTC instants at MongoDB's millisecond precision, keeping creation timestamps consistent across creation and later reads. See [Spring Data MongoDB auditing](https://docs.spring.io/spring-data/mongodb/reference/mongodb/auditing.html).
+
+MongoDB's `@Version` field starts at zero and advances on saves. It makes the database match the saved version during an update, so two competing copies cannot silently overwrite each other. The API also checks the client-supplied version. See [Spring Data MongoDB optimistic locking](https://docs.spring.io/spring-data/mongodb/reference/4.5/mongodb/template-crud-operations.html#mongo-template.optimistic-locking).
+
+Compound indexes support the patient/doctor history filters and ordering. `spring.data.mongodb.auto-index-creation: true` enables creation of the declared indexes at startup. PostgreSQL migrations and dependencies are unchanged. See [Spring Data MongoDB index creation](https://docs.spring.io/spring-data/mongodb/reference/4.5/mongodb/mapping/mapping-index-management.html).
+
+### Verify Phase 6
+
+Stop the old app, start both databases, then run the tests and updated application:
+
+```powershell
+docker compose up -d --wait
+.\mvnw.cmd verify
+.\mvnw.cmd spring-boot:run
+```
+
+In Postman:
+
+1. Book an appointment as PATIENT, then mark it completed as its DOCTOR.
+2. As that doctor, obtain a fresh CSRF token and POST a prescription and medical record. Expect `201` and MongoDB document IDs.
+3. As the patient, GET `/api/prescriptions/me` and `/api/medical-records/me`, then read a document by ID. Expect only that patient's documents.
+4. Update a document as its author using its latest `version`. Expect the content to change and the version to increase. Reuse the old version and expect `409`.
+5. Try another patient, another doctor, and ADMIN. They cannot read or update that document. Patients cannot create clinical documents.
+6. Try a booked/cancelled appointment (`409`), mismatched record patient (`400`), invalid nested content (`400`), and missing document (`404` for an authorized role).
+
+The full Maven suite has 147 passing tests. The new tests exercise both real databases, author/patient boundaries, optional appointment references, input validation, timestamps/indexes, stale client versions, and competing MongoDB document copies. Mockito service tests cover creation, authorization failures, updates, and stale versions. PostgreSQL fixtures roll back; MongoDB writes are independent and are explicitly removed only for the tests' unique fixture patient IDs. Both databases must be running before `verify`.
 
 ## Common setup errors
 
@@ -417,10 +527,11 @@ These requests retain appointment history intentionally. Use dedicated developme
 - **Maven download fails:** check internet/proxy access to `repo.maven.apache.org`; retry the same command after access is fixed.
 - **Health returns `503 DOWN`:** check `docker compose ps` and local application logs. Both databases must be healthy and credentials must match. Avoid sharing logs containing credentials.
 - **Tests cannot connect to PostgreSQL:** start Compose, check that PostgreSQL is healthy, and verify the connection values in `.env`.
+- **MongoDB startup/authentication or index creation fails:** start both Compose services and check `MONGO_HOST`, `MONGO_PORT`, and the existing local credentials. The app now connects to MongoDB during startup to create history indexes; the MongoDB user must have permission to create them. No credential reset or volume deletion is needed for Phase 6.
 - **Flyway checksum mismatch:** restore the original applied migration and put subsequent schema changes in a new versioned migration. Do not delete database volumes or edit Flyway history to bypass the error.
 - **Hibernate reports a missing table/column:** check the earlier Flyway startup messages and ensure migrations are enabled. Keep `ddl-auto: validate`; changing it to `update` hides the schema mismatch.
 - **Basic Auth returns `401`:** use the PostgreSQL account email, not the old `setup` username. Check that the admin was initialized and is enabled. Bootstrap configuration does not reset an existing account's password.
 - **A profile request returns `403`:** check the caller's role and patient ownership/appointment relationship. Admin credentials do not grant a doctor's or patient's personal `/me` profile.
 - **An unsafe request reports a CSRF error:** fetch `/api/auth/csrf` using the same host, keep its cookie, and send the returned token in `X-XSRF-TOKEN`. A valid token still cannot enable an unimplemented route.
 
-Confirm Phase 5 works before starting Phase 6 (MongoDB prescriptions and medical records).
+Confirm Phase 6 works before starting Phase 7 (the chatbot service boundary).

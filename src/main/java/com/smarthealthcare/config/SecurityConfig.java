@@ -46,6 +46,12 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me", "/api/auth/csrf").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/prescriptions/me", "/api/prescriptions/{prescriptionId}",
+                                "/api/medical-records/me", "/api/medical-records/{recordId}")
+                            .hasAnyRole("DOCTOR", "PATIENT")
+                        .requestMatchers(HttpMethod.POST, "/api/prescriptions", "/api/medical-records").hasRole("DOCTOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/prescriptions/{prescriptionId}",
+                                "/api/medical-records/{recordId}").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.GET, "/api/doctors/{doctorId}/slots")
                             .hasAnyRole("ADMIN", "PATIENT", "DOCTOR")
                         .requestMatchers(HttpMethod.POST, "/api/doctors/{doctorId}/slots").hasRole("ADMIN")

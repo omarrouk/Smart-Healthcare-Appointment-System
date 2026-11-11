@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.ErrorResponse;
@@ -47,6 +48,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ApiError> databaseConflict(HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, "Request conflicts with existing data", request);
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    ResponseEntity<ApiError> staleDocument(HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "Document changed; reload it before updating", request);
     }
 
     @ExceptionHandler(InvalidRequestException.class)
