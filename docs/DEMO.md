@@ -10,7 +10,7 @@ Allow approximately seven minutes. Use synthetic accounts and clinical content.
 - Keep the terminal visible for appointment/prescription operation loggers.
 - Keep credentials, authorization headers, cookies/tokens, and private environment values out of shared screenshots.
 
-The connected Healthcare collections automate the workflows. Appointment/clinical runs retain history intentionally. Demo cleanup does not require deleting volumes or clinical history.
+The Healthcare collection's six numbered folders automate the workflows. Appointment/clinical runs retain history intentionally. Demo cleanup does not require deleting volumes or clinical history.
 
 ## Presentation outline
 
@@ -49,7 +49,7 @@ The used clinical doctor/patients cannot be deleted because history is protected
 - Two patients racing for one slot produce one `201` and one `409`.
 - Competing clinical updates produce one `200` and one `409` and preserve the winner.
 - Hibernate statistics prove cache hits; faster HTTP timing alone does not.
-- Five Postman collections cover 299 assertions against a packaged application.
+- One organized Postman collection covers 185 saved requests and 299 assertions against a packaged application.
 - The chatbot is a local stub. Operation logs are diagnostics, not a persistent audit ledger.
 
 ## Questions to prepare for

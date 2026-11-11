@@ -135,7 +135,7 @@ docker compose up -d --wait
 .\mvnw.cmd clean verify
 ~~~
 
-Final regression: **209 Maven tests**, with no failures or skipped tests. The five local Postman collections contain **299 assertions**. The testing guide records the tested environment and live checks.
+Final regression: **209 Maven tests**, with no failures or skipped tests. The main Postman collection contains **185 saved requests and 299 assertions**, organized into six workflows. The testing guide records the tested environment and live checks.
 
 Doctor caching is local to one process. Hibernate updates/deletes invalidate state; authentication and availability queries are not cached. Disable second-level caching for independently writing instances or out-of-band SQL changes.
 
@@ -158,25 +158,3 @@ Doctor caching is local to one process. Hibernate updates/deletes invalidate sta
 | Clinical-write `409` | Complete the owned appointment first, or reload a stale version. |
 | Delete `409` | History is preserved; delete only unused profiles/slots. |
 | Cache startup error | Use positive capacity/TTL and restart after changes. |
-
-## GitHub handoff
-
-Review and run these commands yourself after verification:
-
-~~~powershell
-git status --short
-git diff --check
-git add README.md pom.xml .env.example src docs
-git diff --cached --stat
-git diff --cached
-git commit -m "Complete operation logging, regression tests, and project documentation"
-git push -u origin main
-~~~
-
-If `origin` has not been configured, add it once:
-
-~~~powershell
-git remote add origin https://github.com/omarrouk/Smart-Healthcare-Appointment-System.git
-~~~
-
-Inspect the staged diff before committing. The example environment has blank credentials; keep real credentials and local tooling files excluded.

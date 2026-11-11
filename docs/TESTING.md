@@ -9,7 +9,7 @@ Verified on 2026-11-11 with Java 17.0.17, the Maven wrapper, PostgreSQL 17, Mong
 | `.\mvnw.cmd -B -ntp clean verify` | BUILD SUCCESS |
 | Maven tests | 209 across 22 classes |
 | Failures / errors / skipped | 0 / 0 / 0 |
-| Five Postman collections | 299 passing assertions |
+| One organized Postman collection | 185 saved requests, 299 passing assertions |
 | Live HTTP requests | 292, including automatic CSRF fetches |
 | Dedicated operation-log check | 46 entries verified for expected outcomes and absence of clinical content |
 | Packaged application | Started successfully against temporary PostgreSQL/MongoDB |
@@ -74,27 +74,28 @@ Full-context tests disable bootstrap. Test passwords/hashes are synthetic, and n
 
 Select **Smart Healthcare - Local** and set private local values for `healthcareAdminEmail` and `healthcareAdminPassword`. `healthcareBaseUrl` defaults to `http://localhost:8080`. These names avoid generic variables belonging to other projects.
 
-Run each collection in its saved request order:
+Run **Smart Healthcare Appointment System** in its saved request order, or run an entire numbered top-level workflow folder. Nested folders depend on their workflow's setup requests.
 
-| Collection | Saved requests | Assertions | Fixture handling |
+| Workflow folder | Saved requests | Assertions | Fixture handling |
 | --- | ---: | ---: | --- |
-| Smart Healthcare Appointment System | 34 | 68 | Confirms/removes unused test profiles |
-| Smart Healthcare - Phase 5 Appointments | 40 | 57 | Retains appointment history |
-| Smart Healthcare - Phase 6 Clinical Documents | 59 | 85 | Retains appointment/clinical history |
-| Smart Healthcare - Phase 7 Chatbot | 29 | 52 | Confirms/removes unused test profiles |
-| Smart Healthcare - Phase 8 Doctor Cache | 23 | 37 | Confirms/removes unused test profiles |
+| 01 - Health and Security | 11 | 26 | No account fixtures |
+| 02 - Doctors and Patients | 23 | 42 | Confirms/removes unused test profiles |
+| 03 - Appointments | 40 | 57 | Retains appointment history |
+| 04 - Clinical Documents | 59 | 85 | Retains appointment/clinical history |
+| 05 - Chatbot | 29 | 52 | Confirms/removes unused test profiles |
+| 06 - Doctor Cache | 23 | 37 | Confirms/removes unused test profiles |
 | **Total** | **185** | **299** | |
 
-Automatic CSRF fetches account for 107 additional HTTP requests. Shared credential/test values remain blank; each collection has its own namespaced runtime variables. Other projects' collections/environments are not used.
+Automatic CSRF fetches account for 107 additional HTTP requests. The collection declares only `healthcareBaseUrl`, `healthcareAdminEmail`, and `healthcareAdminPassword`. Shared credentials remain blank; workflows generate separate namespaced runtime variables. Other projects' collections/environments are not used.
 
-Appointment and clinical collections intentionally retain synthetic history because the API has no history deletion route. A rerun creates a new tagged fixture set. For the cleanup collections, complete an interrupted run's remaining confirmation/deletion requests before restarting it.
+Appointment and clinical workflows intentionally retain synthetic history because the API has no history deletion route. A rerun creates a new tagged fixture set. For workflows with cleanup, complete an interrupted run's remaining confirmation/deletion requests before restarting it. Expected error responses pass when their security or validation assertions succeed.
 
-The final workspace review verified all five connected collections against the tested local versions.
+The consolidated local export passed all 299 assertions against the packaged application. Its 185 request definitions and scripts preserve the original five collections' behavior. A full read-back of the connected main collection verified its request definitions, scripts, descriptions, and folder order against that export. Older exports are retained under the ignored local `postman/archive/` directory as backups.
 
 Collection exports and connection configuration remain local/ignored as requested. The [API reference](API.md) provides independent manual request examples for a fresh clone.
 
 ## Reading the logs and cache evidence
 
-The appointment/clinical collections exercise `healthcare.appointments` and `healthcare.prescriptions`. Match ATTEMPT and outcome lines by request ID. Authentication/CSRF/validation rejected before service invocation does not produce these service-operation entries.
+The appointment/clinical workflows exercise `healthcare.appointments` and `healthcare.prescriptions`. Match ATTEMPT and outcome lines by request ID. Authentication/CSRF/validation rejected before service invocation does not produce these service-operation entries.
 
-The cache collection checks warm-read correctness, committed update freshness, permissions, and deletion. Actual hits are proven by Hibernate statistics tests rather than HTTP timing. Tests also verify that disabled user state is not cached and disabling the doctor cache preserves reads.
+The cache workflow checks warm-read correctness, committed update freshness, permissions, and deletion. Actual hits are proven by Hibernate statistics tests rather than HTTP timing. Tests also verify that disabled user state is not cached and disabling the doctor cache preserves reads.
