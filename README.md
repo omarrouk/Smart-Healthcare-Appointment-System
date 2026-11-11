@@ -1,6 +1,6 @@
 # Smart Healthcare Appointment System
 
-A university project built step by step as a Spring Boot 3 REST API. There is no frontend. **Current phase: 3 (security).** The relational model, database-backed Basic Auth, role checks, and profile ownership checks are implemented. Profile creation/updates and appointment operations will follow in later phases.
+A university project built step by step as a Spring Boot 3 REST API. There is no frontend. **Current phase: 4 (doctors and patients).** The API supports database-backed authentication, role/ownership checks, admin CRUD for doctors/patients, patient profile updates, and doctor specialty search. Slot management and appointment operations follow in Phase 5.
 
 ## Prerequisites
 
@@ -109,6 +109,7 @@ src/main/java/com/smarthealthcare/
     UserResponse.java, DoctorResponse.java, PatientResponse.java
     DoctorSlotResponse.java, AppointmentResponse.java
     ApiError.java, CsrfTokenResponse.java
+    UpdateDoctorRequest.java, UpdatePatientRequest.java, DoctorSummaryResponse.java
   config/
     SecurityConfig.java, AdminInitializer.java
   security/
@@ -117,9 +118,10 @@ src/main/java/com/smarthealthcare/
   controller/
     AuthController.java, DoctorController.java, PatientController.java
   service/
-    DoctorService.java, PatientService.java
+    DoctorService.java, PatientService.java, UserAccountService.java
   exception/
     ResourceNotFoundException.java, GlobalExceptionHandler.java
+    ResourceConflictException.java, InvalidRequestException.java
 src/main/resources/
   application.yml
   db/migration/V1__create_relational_model.sql
@@ -129,6 +131,8 @@ src/test/java/com/smarthealthcare/
   config/AdminInitializerTest.java
   security/DatabaseUserDetailsServiceTest.java
   security/SecurityIntegrationTest.java
+  controller/ProfileManagementIntegrationTest.java
+  service/UserAccountServiceTest.java
 ```
 
 The remaining packages (`document`, `aop`, and `chatbot`) will be added when their first class is needed.
@@ -227,13 +231,13 @@ Spring supplies `Authentication` through `SecurityContextHolder` for the current
 
 `@EnableMethodSecurity` activates `@PreAuthorize` checks on services. The patient lookup calls `AccessControlService` before returning a profile, so knowing another patient's ID does not grant access. A cancelled appointment alone does not establish a doctor/patient relationship. Completed appointments preserve access to the patient profile for follow-up care. Admin profile access does not imply access to medical records; those permissions will be implemented with MongoDB endpoints in Phase 6.
 
-There is no public registration or role-change endpoint. Admin creation of doctor/patient accounts and CRUD/search will be added in Phase 4. An account with a clinical role but no corresponding profile receives `404` from its `/me` profile endpoint.
+There is no public registration or role-change endpoint. Admin creation of doctor/patient accounts and CRUD/search are described in Phase 4 below. An account with a clinical role but no corresponding profile receives `404` from its `/me` profile endpoint.
 
 ### 4. CSRF protection and errors
 
 CSRF protection remains enabled because browsers can automatically resend Basic Auth credentials. `SessionCreationPolicy.STATELESS` does not make Basic Auth immune to CSRF. Tokens are stored in an HttpOnly `XSRF-TOKEN` cookie instead of an HTTP session. See [Spring Security's CSRF documentation](https://docs.spring.io/spring-security/reference/6.5/servlet/exploits/csrf.html).
 
-For future POST/PUT/PATCH/DELETE operations, first send an authenticated GET `/api/auth/csrf`. Keep the returned cookie and send the JSON `token` value in the header named by `headerName` (`X-XSRF-TOKEN`). Postman keeps the cookie in its cookie jar. Use the token returned in JSON, which can differ from the cookie value because Spring masks it. These operations will also require their role/ownership checks; a CSRF token grants no additional permissions. No business write endpoint exists in this phase.
+For POST/PUT/PATCH/DELETE operations, first send an authenticated GET `/api/auth/csrf`. Keep the returned cookie and send the JSON `token` value in the header named by `headerName` (`X-XSRF-TOKEN`). Postman keeps the cookie in its cookie jar. Use the token returned in JSON, which can differ from the cookie value because Spring masks it. These operations also require their role/ownership checks; a CSRF token grants no additional permissions.
 
 Security-filter and controller errors share this format:
 
@@ -262,6 +266,83 @@ In Postman, select Basic Auth, enter the configured administrator email as the u
 
 The security tests use real BCrypt-backed accounts and MockMvc requests against the full Spring context. They cover all three roles, disabled accounts, request-by-request authentication, profile ownership, related/unrelated doctors, cancelled/completed relationships, consistent errors, and the real CSRF cookie/token flow. Their accounts, profiles, slots, and appointments roll back after each test. The bootstrap initializer is disabled in the full-context test and tested separately with Mockito. No new dependencies or schema migrations were needed for Phase 3.
 
+## Phase 4: doctors and patients
+
+### Endpoints
+
+All write requests require Basic Auth, the CSRF cookie, and the matching `X-XSRF-TOKEN` header. JSON bodies use `Content-Type: application/json`.
+
+| Method and path | Access | Result |
+| --- | --- | --- |
+| POST `/api/doctors` | ADMIN | `201` with a doctor profile and `Location` header |
+| GET `/api/doctors` | ADMIN, PATIENT | List of doctor summaries |
+| GET `/api/doctors?specialty=Cardiology` | ADMIN, PATIENT | Case-insensitive exact specialty matches |
+| GET `/api/doctors/{doctorId}` | ADMIN | Full doctor profile and safe account details |
+| PUT `/api/doctors/{doctorId}` | ADMIN | Update name/specialty; `200` |
+| DELETE `/api/doctors/{doctorId}` | ADMIN | Delete an unused doctor and its login; `204` |
+| POST `/api/patients` | ADMIN | `201` with a patient profile and `Location` header |
+| GET `/api/patients` | ADMIN | List of patient profiles |
+| GET `/api/patients/{patientId}` | Existing Phase 3 ownership rules | One patient profile |
+| PUT `/api/patients/{patientId}` | ADMIN | Update name/phone; `200` |
+| PUT `/api/patients/me` | PATIENT | Update only the caller's name/phone; `200` |
+| DELETE `/api/patients/{patientId}` | ADMIN | Delete an unused patient and its login; `204` |
+
+The existing doctor/patient GET `/me` endpoints are unchanged. A doctor can read its own profile but cannot administer accounts. Patients cannot list other patients or use administrative write routes, including PUT by ID. Their update route is PUT `/api/patients/me`.
+
+### Request bodies
+
+Create a doctor as ADMIN:
+
+```json
+{
+  "account": {
+    "email": "doctor@example.com",
+    "password": "replace-with-your-own-password"
+  },
+  "name": "Doctor Name",
+  "specialty": "Cardiology"
+}
+```
+
+Create a patient as ADMIN:
+
+```json
+{
+  "account": {
+    "email": "patient@example.com",
+    "password": "replace-with-your-own-password"
+  },
+  "name": "Patient Name",
+  "phone": "+970123456789"
+}
+```
+
+Choose your own unique local passwords; the examples are placeholders. The server assigns `DOCTOR` or `PATIENT` from the endpoint. Request bodies cannot select an administrator role. Duplicate emails, including case variations across roles, return `409`; the database unique constraint also protects concurrent registrations. Passwords are BCrypt-encoded before saving and never returned.
+
+Update a doctor with `{"name":"Updated Doctor","specialty":"Neurology"}`. Update a patient with `{"name":"Updated Patient","phone":"12345"}`. Names and specialties are trimmed. Phone is optional; null or blank clears it. These updates do not change the email, password, enabled flag, or role. Empty names/specialties and oversized values return `400` with field errors. Missing profiles return `404` for authorized callers.
+
+Doctor search returns only `id`, `name`, and `specialty`, without account IDs, login emails, or password hashes. Omit the specialty parameter to list all doctors. A blank or overlong specialty is rejected with `400`; an unknown specialty returns an empty list. Available-slot management remains in Phase 5.
+
+### Transactions and deletion rules
+
+`@Transactional` groups account/profile creation and deletion into one database operation: failures roll back the group. Updates load a managed entity and change its fields inside a write transaction; Hibernate detects and saves those changes. See [Spring Data JPA transactionality](https://docs.spring.io/spring-data/jpa/reference/jpa/transactions.html). Patient lists use `@EntityGraph(attributePaths = "user")` to fetch the needed account data with the profiles instead of issuing a separate account query for each row.
+
+An account/profile with any appointment history cannot be deleted. This includes `BOOKED`, `CANCELLED`, and `COMPLETED` appointments; the API returns `409` and preserves the account, profile, and history. An unused doctor's unbooked slots are removed as part of its deletion. Deleting an unused patient or doctor also removes its login, so later Basic Auth attempts return `401`. Database foreign keys remain a final safeguard against concurrent conflicting writes. There are no cascading deletes of appointment or medical history.
+
+### Verify Phase 4
+
+Stop the old application before running the updated version:
+
+```powershell
+docker compose up -d --wait
+.\mvnw.cmd verify
+.\mvnw.cmd spring-boot:run
+```
+
+In Postman, authenticate as ADMIN, GET `/api/auth/csrf`, then POST a doctor/patient using the example body, returned token, and cookie. Expect `201`. Sign in with the new clinical account and read its `/me` profile. As PATIENT, search doctors and PUT your own profile. Administrative creation/updates/deletion must return `403` for clinical users, even with a valid CSRF token.
+
+The tests cover registration and BCrypt login, server-assigned roles, nested validation, duplicate emails, search privacy, persisted updates, self-update restrictions, deletion/account removal, history protection across all appointment statuses, and service-level permissions. They use the actual CSRF endpoint rather than replacing the filter's cookie repository. Their fixture data rolls back. Phase 4 adds no dependencies or schema migrations.
+
 ## Common setup errors
 
 - **Docker cannot connect to its engine:** start Docker Desktop, select Linux containers, and wait until `docker info` succeeds.
@@ -278,4 +359,4 @@ The security tests use real BCrypt-backed accounts and MockMvc requests against 
 - **A profile request returns `403`:** check the caller's role and patient ownership/appointment relationship. Admin credentials do not grant a doctor's or patient's personal `/me` profile.
 - **An unsafe request reports a CSRF error:** fetch `/api/auth/csrf` using the same host, keep its cookie, and send the returned token in `X-XSRF-TOKEN`. A valid token still cannot enable an unimplemented route.
 
-Confirm Phase 3 works before starting Phase 4 (doctor/patient registration, CRUD, and specialty search).
+Confirm Phase 4 works before starting Phase 5 (slot management, booking, cancellation, and completion).

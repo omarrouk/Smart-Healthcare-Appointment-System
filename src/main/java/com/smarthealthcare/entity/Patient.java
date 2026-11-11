@@ -33,8 +33,12 @@ public class Patient {
 
     public Patient(User user, String name, String phone) {
         this.user = user;
-        this.name = name;
-        this.phone = phone;
+        updateDetails(name, phone);
+    }
+
+    public void updateDetails(String name, String phone) {
+        this.name = name.strip();
+        this.phone = phone == null || phone.isBlank() ? null : phone.strip();
     }
 
     public Long getId() {

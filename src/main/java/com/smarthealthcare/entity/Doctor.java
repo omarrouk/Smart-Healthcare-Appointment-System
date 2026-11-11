@@ -33,8 +33,12 @@ public class Doctor {
 
     public Doctor(User user, String name, String specialty) {
         this.user = user;
-        this.name = name;
-        this.specialty = specialty;
+        updateDetails(name, specialty);
+    }
+
+    public void updateDetails(String name, String specialty) {
+        this.name = name.strip();
+        this.specialty = specialty.strip();
     }
 
     public Long getId() {

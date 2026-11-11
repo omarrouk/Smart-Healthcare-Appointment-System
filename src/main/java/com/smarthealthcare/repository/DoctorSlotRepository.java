@@ -10,4 +10,6 @@ public interface DoctorSlotRepository extends JpaRepository<DoctorSlot, Long> {
 
     List<DoctorSlot> findByDoctorIdAndStartTimeGreaterThanEqualOrderByStartTimeAsc(
             Long doctorId, Instant startTime);
+
+    void deleteByDoctorId(Long doctorId);
 }
