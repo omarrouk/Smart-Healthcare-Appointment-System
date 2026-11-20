@@ -93,10 +93,14 @@ Any appointment history prevents deleting its doctor/patient, including cancelle
 | GET | `/api/doctors/{doctorId}/slots` | ADMIN, PATIENT, owning DOCTOR | `200` future unoccupied slots |
 | DELETE | `/api/doctors/{doctorId}/slots/{slotId}` | ADMIN | `204` slot without appointment history removed |
 | POST | `/api/appointments` | PATIENT | `201` booking and Location |
-| GET | `/api/appointments/me` | PATIENT, DOCTOR | `200` own appointments/history |
+| GET | `/api/appointments/me` | PATIENT, DOCTOR | `200` own appointments/history; optional `date` filter |
 | GET | `/api/appointments/{appointmentId}` | Owning PATIENT or DOCTOR | `200` one appointment |
 | PATCH | `/api/appointments/{appointmentId}/cancel` | Owning PATIENT | `200` CANCELLED |
 | PATCH | `/api/appointments/{appointmentId}/complete` | Owning DOCTOR | `200` COMPLETED |
+
+List today's appointments as DOCTOR with `GET /api/appointments/me?date=today`, or select a date with `GET /api/appointments/me?date=2030-01-07`. PATIENT accounts can use the same filter for their own appointments. Omitting `date` preserves the complete history response.
+
+Dates use UTC, matching the appointment timestamps. The filter selects slot start times from 00:00 inclusive to the next day's 00:00 exclusive, keeps chronological order and all appointment statuses, and never expands ownership access. A date without matches returns `[]`; an empty, malformed, or impossible date returns `400`. Use exactly `today` or `YYYY-MM-DD`.
 
 Create a slot as ADMIN, choosing a future date on a UTC half-hour boundary:
 

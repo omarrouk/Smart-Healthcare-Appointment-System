@@ -286,6 +286,79 @@ class AppointmentIntegrationTest {
     }
 
     @Test
+    void dateFilterUsesUtcBoundariesAndPreservesOwnershipAndHistory() throws Exception {
+        Instant start = Instant.parse("2030-01-07T00:00:00Z");
+        appointment(doctor, patient, start.minusSeconds(1800));
+        Appointment first = appointment(doctor, patient, start);
+        first.cancel();
+        Appointment last = appointment(doctor, patient, start.plusSeconds(23 * 3600 + 1800));
+        last.complete();
+        Appointment otherDoctorsPatient = appointment(doctor, otherPatient, start.plusSeconds(12 * 3600));
+        Appointment patientsOtherDoctor = appointment(otherDoctor, patient, start.plusSeconds(13 * 3600));
+        appointment(otherDoctor, otherPatient, start.plusSeconds(10 * 3600));
+        appointment(doctor, patient, start.plusSeconds(24 * 3600));
+        entityManager.flush();
+
+        mvc.perform(get("/api/appointments/me").param("date", "2030-01-07").with(auth(doctor.getUser())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].id").value(first.getId()))
+                .andExpect(jsonPath("$[0].status").value("CANCELLED"))
+                .andExpect(jsonPath("$[1].id").value(otherDoctorsPatient.getId()))
+                .andExpect(jsonPath("$[2].id").value(last.getId()))
+                .andExpect(jsonPath("$[2].status").value("COMPLETED"));
+        mvc.perform(get("/api/appointments/me").param("date", "2030-01-07").with(auth(patient.getUser())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].id").value(first.getId()))
+                .andExpect(jsonPath("$[1].id").value(patientsOtherDoctor.getId()))
+                .andExpect(jsonPath("$[2].id").value(last.getId()));
+    }
+
+    @Test
+    void todayReturnsOnlyAppointmentsStartingOnTheCurrentUtcDate() throws Exception {
+        Instant noon = Instant.now().truncatedTo(ChronoUnit.DAYS).plusSeconds(12 * 3600);
+        appointment(doctor, patient, noon.minus(1, ChronoUnit.DAYS));
+        appointment(doctor, patient, noon);
+        appointment(doctor, patient, noon.plus(1, ChronoUnit.DAYS));
+
+        for (User user : List.of(doctor.getUser(), patient.getUser())) {
+            Instant before = Instant.now().truncatedTo(ChronoUnit.DAYS);
+            var response = mvc.perform(get("/api/appointments/me").param("date", "today").with(auth(user)))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                    .andReturn().getResponse();
+            Instant after = Instant.now().truncatedTo(ChronoUnit.DAYS);
+            Instant returnedDate = Instant.parse(mapper.readTree(response.getContentAsString())
+                    .get(0).get("startTime").asText()).truncatedTo(ChronoUnit.DAYS);
+            assertThat(returnedDate).isIn(before, after);
+        }
+    }
+
+    @Test
+    void dateWithoutMatchingAppointmentsReturnsAnEmptyList() throws Exception {
+        appointments.saveAndFlush(new Appointment(slot, patient));
+        for (User user : List.of(doctor.getUser(), patient.getUser())) {
+            mvc.perform(get("/api/appointments/me").param("date", "2000-01-01").with(auth(user)))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "tomorrow", "Today", "2030-02-30", "2030-13-01", "2030-1-07",
+            "2030-01-07T00:00:00Z", "+999999999-12-31"})
+    void rejectsInvalidAppointmentDates(String date) throws Exception {
+        mvc.perform(get("/api/appointments/me").param("date", date).with(auth(doctor.getUser())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Date must be today or a valid date in YYYY-MM-DD format"));
+    }
+
+    @Test
+    void dateFilterStillRequiresAuthenticationAndAClinicalRole() throws Exception {
+        mvc.perform(get("/api/appointments/me").param("date", "today"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/appointments/me").param("date", "today").with(auth(admin)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void appointmentWritesRequireCsrfAndReadsRequireAuthentication() throws Exception {
         mvc.perform(get("/api/appointments/me")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/appointments").with(auth(patient.getUser()))
@@ -303,6 +376,11 @@ class AppointmentIntegrationTest {
         } finally {
             SecurityContextHolder.clearContext();
         }
+    }
+
+    private Appointment appointment(Doctor owner, Patient attendee, Instant start) {
+        var appointmentSlot = slots.saveAndFlush(new DoctorSlot(owner, start));
+        return appointments.saveAndFlush(new Appointment(appointmentSlot, attendee));
     }
 
     private User user(Role role) {

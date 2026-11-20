@@ -34,7 +34,7 @@ For each write, fetch fresh CSRF with the same account.
 3. PATIENT books with a slot ID: `201`, BOOKED.
 4. Another patient books the same slot: `409`.
 5. The owner cancels: CANCELLED. The other patient can now book.
-6. DOCTOR lists appointments and completes the new booking.
+6. DOCTOR opens `GET /api/appointments/me?date=today` for today's UTC schedule, or uses `?date=YYYY-MM-DD` for the demo booking's date, then completes the booking.
 7. DOCTOR creates a prescription and medical record: `201`.
 8. The owning PATIENT reads both histories. Another patient cannot read a document by ID.
 9. DOCTOR updates with the latest version: `200`. Reusing the old version returns `409`.
@@ -45,11 +45,11 @@ The used clinical doctor/patients cannot be deleted because history is protected
 
 ## Explain the evidence
 
-- 209 Maven tests include real PostgreSQL races and competing MongoDB HTTP updates.
+- 221 Maven tests include real PostgreSQL races and competing MongoDB HTTP updates.
 - Two patients racing for one slot produce one `201` and one `409`.
 - Competing clinical updates produce one `200` and one `409` and preserve the winner.
 - Hibernate statistics prove cache hits; faster HTTP timing alone does not.
-- One organized Postman collection covers 185 saved requests and 299 assertions against a packaged application.
+- One organized Postman collection covers 194 saved requests and 317 assertions against a packaged application.
 - The chatbot is a local stub. Operation logs are diagnostics, not a persistent audit ledger.
 
 ## Questions to prepare for

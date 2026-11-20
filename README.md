@@ -7,7 +7,7 @@ A Spring Boot 3 REST API for managing doctors, patients, appointments, prescript
 - Basic Auth, BCrypt passwords, and ADMIN/DOCTOR/PATIENT roles with resource ownership.
 - Admin doctor/patient management, specialty search, and patient profile updates.
 - Fixed 30-minute slots with database protection against concurrent bookings.
-- Cancellation, completion, and preserved appointment history.
+- Cancellation, completion, preserved appointment history, and own appointments filtered by UTC date.
 - MongoDB clinical documents with author/patient access and optimistic version checks.
 - Local chatbot guidance, AOP operation logs, request-scoped IDs, and doctor caching.
 
@@ -135,7 +135,7 @@ docker compose up -d --wait
 .\mvnw.cmd clean verify
 ~~~
 
-Final regression: **209 Maven tests**, with no failures or skipped tests. The main Postman collection contains **185 saved requests and 299 assertions**, organized into six workflows. The testing guide records the tested environment and live checks.
+Final regression: **221 Maven tests**, with no failures or skipped tests. The main Postman collection contains **194 saved requests and 317 assertions**, organized into six workflows. The testing guide records the tested environment and live checks.
 
 Doctor caching is local to one process. Hibernate updates/deletes invalidate state; authentication and availability queries are not cached. Disable second-level caching for independently writing instances or out-of-band SQL changes.
 

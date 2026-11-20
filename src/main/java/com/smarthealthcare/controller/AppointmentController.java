@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
@@ -27,8 +28,8 @@ public class AppointmentController {
     }
 
     @GetMapping("/me")
-    public List<AppointmentResponse> mine() {
-        return appointments.getMine();
+    public List<AppointmentResponse> mine(@RequestParam(required = false) String date) {
+        return appointments.getMine(date);
     }
 
     @GetMapping("/{appointmentId}")

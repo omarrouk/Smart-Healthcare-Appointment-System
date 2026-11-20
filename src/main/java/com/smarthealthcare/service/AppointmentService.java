@@ -5,6 +5,7 @@ import com.smarthealthcare.dto.BookAppointmentRequest;
 import com.smarthealthcare.entity.Appointment;
 import com.smarthealthcare.entity.AppointmentStatus;
 import com.smarthealthcare.entity.Role;
+import com.smarthealthcare.exception.InvalidRequestException;
 import com.smarthealthcare.exception.ResourceConflictException;
 import com.smarthealthcare.exception.ResourceNotFoundException;
 import com.smarthealthcare.repository.AppointmentRepository;
@@ -18,6 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @Service
@@ -40,17 +44,24 @@ public class AppointmentService {
     }
 
     @PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR')")
-    public List<AppointmentResponse> getMine() {
+    public List<AppointmentResponse> getMine(String date) {
+        LocalDate day = parseDate(date);
+        Instant start = day == null ? null : day.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant end = day == null ? null : day.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
         var user = currentUser.get();
         List<Appointment> matches;
         if (user.getRole() == Role.PATIENT) {
             var patient = patients.findByUserId(user.getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Patient profile not found"));
-            matches = appointments.findByPatientIdOrderBySlotStartTimeAsc(patient.getId());
+            matches = day == null
+                    ? appointments.findByPatientIdOrderBySlotStartTimeAsc(patient.getId())
+                    : appointments.findByPatientIdInTimeRange(patient.getId(), start, end);
         } else {
             var doctor = doctors.findByUserId(user.getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
-            matches = appointments.findBySlotDoctorIdOrderBySlotStartTimeAsc(doctor.getId());
+            matches = day == null
+                    ? appointments.findBySlotDoctorIdOrderBySlotStartTimeAsc(doctor.getId())
+                    : appointments.findByDoctorIdInTimeRange(doctor.getId(), start, end);
         }
         return matches.stream().map(AppointmentResponse::from).toList();
     }
@@ -107,6 +118,20 @@ public class AppointmentService {
     private Appointment findLocked(Long appointmentId) {
         return appointments.findLockedById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+    }
+
+    private LocalDate parseDate(String date) {
+        if (date == null) return null;
+        if (date.equals("today")) return LocalDate.now(ZoneOffset.UTC);
+        String message = "Date must be today or a valid date in YYYY-MM-DD format";
+        if (!date.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            throw new InvalidRequestException(message);
+        }
+        try {
+            return LocalDate.parse(date);
+        } catch (DateTimeParseException exception) {
+            throw new InvalidRequestException(message);
+        }
     }
 
     private void requireBooked(Appointment appointment) {

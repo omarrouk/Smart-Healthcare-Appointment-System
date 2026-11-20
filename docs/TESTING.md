@@ -2,15 +2,15 @@
 
 ## Final results
 
-Verified on 2026-11-11 with Java 17.0.17, the Maven wrapper, PostgreSQL 17, MongoDB 8.0, and Docker Desktop.
+Verified on 2026-11-19 with Java 17.0.17, the Maven wrapper, PostgreSQL 17, MongoDB 8.0, and Docker Desktop.
 
 | Check | Result |
 | --- | --- |
 | `.\mvnw.cmd -B -ntp clean verify` | BUILD SUCCESS |
-| Maven tests | 209 across 22 classes |
+| Maven tests | 221 across 22 classes |
 | Failures / errors / skipped | 0 / 0 / 0 |
-| One organized Postman collection | 185 saved requests, 299 passing assertions |
-| Live HTTP requests | 292, including automatic CSRF fetches |
+| One organized Postman collection | 194 saved requests, 317 passing assertions |
+| Live HTTP requests | 301, including automatic CSRF fetches |
 | Dedicated operation-log check | 46 entries verified for expected outcomes and absence of clinical content |
 | Packaged application | Started successfully against temporary PostgreSQL/MongoDB |
 | Temporary live-test resources | Application, containers, and credential files cleaned up |
@@ -44,13 +44,13 @@ Surefire writes reports under `target/surefire-reports`. Some tests intentionall
 | AOP/scopes | 11 | Metadata-only events, original result/exception, ordering, request IDs |
 | Chatbot | 36 | Role selection, validation, private-input omission, authentication/CSRF |
 | Bootstrap/cache configuration | 9 | Safe initial admin creation, cache bounds, lifecycle/isolation |
-| Appointments | 35 | Booking rules, ownership, status transitions, concurrency |
+| Appointments | 47 | Booking rules, UTC date filters, ownership, status transitions, concurrency |
 | Profiles/accounts | 26 | CRUD, BCrypt registration, duplicate emails, history protection |
 | Authentication/authorization | 31 | Roles, ownership, disabled accounts, generic errors, real CSRF |
 | Relational persistence/cache | 16 | Constraints, relationships, L1/L2 behavior, rollback, cache-off reads |
 | Clinical documents | 38 | Real Mongo persistence, authorship, history, versions, concurrent HTTP writes |
 | DTO validation | 7 | Nested constraints, password byte limit, safe serialization |
-| **Total** | **209** | |
+| **Total** | **221** | |
 
 ## Concurrent cases
 
@@ -80,17 +80,17 @@ Run **Smart Healthcare Appointment System** in its saved request order, or run a
 | --- | ---: | ---: | --- |
 | 01 - Health and Security | 11 | 26 | No account fixtures |
 | 02 - Doctors and Patients | 23 | 42 | Confirms/removes unused test profiles |
-| 03 - Appointments | 40 | 57 | Retains appointment history |
+| 03 - Appointments | 49 | 75 | Retains appointment history |
 | 04 - Clinical Documents | 59 | 85 | Retains appointment/clinical history |
 | 05 - Chatbot | 29 | 52 | Confirms/removes unused test profiles |
 | 06 - Doctor Cache | 23 | 37 | Confirms/removes unused test profiles |
-| **Total** | **185** | **299** | |
+| **Total** | **194** | **317** | |
 
 Automatic CSRF fetches account for 107 additional HTTP requests. The collection declares only `healthcareBaseUrl`, `healthcareAdminEmail`, and `healthcareAdminPassword`. Shared credentials remain blank; workflows generate separate namespaced runtime variables. Other projects' collections/environments are not used.
 
 Appointment and clinical workflows intentionally retain synthetic history because the API has no history deletion route. A rerun creates a new tagged fixture set. For workflows with cleanup, complete an interrupted run's remaining confirmation/deletion requests before restarting it. Expected error responses pass when their security or validation assertions succeed.
 
-The consolidated local export passed all 299 assertions against the packaged application. Its 185 request definitions and scripts preserve the original five collections' behavior. A full read-back of the connected main collection verified its request definitions, scripts, descriptions, and folder order against that export. Older exports are retained under the ignored local `postman/archive/` directory as backups.
+The consolidated local export passed all 317 assertions against the packaged application. The original workflows remain intact, with nine additional requests covering appointment date filters. A full read-back of the connected main collection verified its request definitions, scripts, descriptions, and folder order against that export. Older exports are retained under the ignored local `postman/archive/` directory as backups.
 
 Collection exports and connection configuration remain local/ignored as requested. The [API reference](API.md) provides independent manual request examples for a fresh clone.
 
