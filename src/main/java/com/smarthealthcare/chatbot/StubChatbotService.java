@@ -5,10 +5,12 @@ import com.smarthealthcare.dto.ChatbotResponse;
 import com.smarthealthcare.security.CurrentUser;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.Locale;
 
 @Service
+@ConditionalOnProperty(name = "app.chatbot.mode", havingValue = "stub", matchIfMissing = true)
 public class StubChatbotService implements ChatbotService {
 
     private final CurrentUser currentUser;

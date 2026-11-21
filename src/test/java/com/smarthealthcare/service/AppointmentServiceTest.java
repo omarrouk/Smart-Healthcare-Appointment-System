@@ -9,6 +9,8 @@ import com.smarthealthcare.entity.Patient;
 import com.smarthealthcare.entity.Role;
 import com.smarthealthcare.entity.User;
 import com.smarthealthcare.exception.ResourceConflictException;
+import com.smarthealthcare.exception.DoubleBookingException;
+import org.hibernate.exception.ConstraintViolationException;
 import com.smarthealthcare.repository.AppointmentRepository;
 import com.smarthealthcare.repository.DoctorRepository;
 import com.smarthealthcare.repository.DoctorSlotRepository;
@@ -25,6 +27,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+import java.sql.SQLException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -90,6 +93,20 @@ class AppointmentServiceTest {
 
         assertThatThrownBy(() -> service.book(new BookAppointmentRequest(4L)))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void concurrentOccupiedSlotConstraintCarriesSafeBookingContext() {
+        var constraint = new ConstraintViolationException("private-database-details", new SQLException("private-sql"),
+                "uq_appointments_occupied_slot");
+        when(appointments.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("private-details", constraint));
+
+        assertThatThrownBy(() -> service.book(new BookAppointmentRequest(4L)))
+                .isInstanceOfSatisfying(DoubleBookingException.class, failure -> {
+                    assertThat(failure.getDoctorName()).isEqualTo("Doctor");
+                    assertThat(failure.getStartTime()).isEqualTo(slot.getStartTime());
+                    assertThat(failure.getMessage()).isEqualTo("Slot is already booked");
+                });
     }
 
     @Test

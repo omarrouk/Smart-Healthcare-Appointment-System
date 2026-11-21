@@ -5,6 +5,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.smarthealthcare.exception.ResourceConflictException;
+import com.smarthealthcare.exception.DoubleBookingException;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.Signature;
 import org.junit.jupiter.api.AfterEach;
@@ -18,6 +19,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.util.stream.Stream;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -94,5 +96,20 @@ class OperationLoggingAspectTest {
                 new OptimisticLockingFailureException("private-failure-content"),
                 new AccessDeniedException("private-failure-content"),
                 new IllegalStateException("private-failure-content"));
+    }
+
+    @Test
+    void describesDoubleBookingWithDoctorAndUtcTimeWithoutAllowingLogInjection() throws Throwable {
+        var failure = new DoubleBookingException("Dr. Smith\r\nforged-entry", Instant.parse("2030-01-07T10:00:00Z"));
+        when(invocation.proceed()).thenThrow(failure);
+
+        assertThatThrownBy(() -> aspect.appointment(invocation)).isSameAs(failure);
+
+        assertThat(events.list).hasSize(2);
+        assertThat(events.list.get(1).getFormattedMessage())
+                .contains("outcome=CONFLICT", "Double booking attempt prevented for Dr. Smith  forged-entry at 10:00 AM UTC (2030-01-07)")
+                .doesNotContain("\r", "\n");
+        assertThat(events.list.get(1).getThrowableProxy()).isNull();
+        verify(invocation, never()).getArgs();
     }
 }

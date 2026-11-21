@@ -2,13 +2,14 @@
 
 ## Final results
 
-Verified on 2026-11-19 with Java 17.0.17, the Maven wrapper, PostgreSQL 17, MongoDB 8.0, and Docker Desktop.
+Verified on 2026-11-21 with Java 17.0.17, the Maven wrapper, PostgreSQL 17, MongoDB 8.0, and Docker Desktop.
 
 | Check | Result |
 | --- | --- |
 | `.\mvnw.cmd -B -ntp clean verify` | BUILD SUCCESS |
-| Maven tests | 221 across 22 classes |
+| Maven tests | 228 across 23 classes |
 | Failures / errors / skipped | 0 / 0 / 0 |
+| Independent chatbot service | 14 passing tests; separate Maven build |
 | One organized Postman collection | 194 saved requests, 317 passing assertions |
 | Live HTTP requests | 301, including automatic CSRF fetches |
 | Dedicated operation-log check | 46 entries verified for expected outcomes and absence of clinical content |
@@ -41,16 +42,16 @@ Surefire writes reports under `target/surefire-reports`. Some tests intentionall
 
 | Area | Tests | Main assertions |
 | --- | ---: | --- |
-| AOP/scopes | 11 | Metadata-only events, original result/exception, ordering, request IDs |
-| Chatbot | 36 | Role selection, validation, private-input omission, authentication/CSRF |
+| AOP/scopes | 12 | Safe conflict details, log injection protection, original result/exception, ordering, request IDs |
+| Chatbot | 41 | Role selection, validation, private-input omission, authentication/CSRF |
 | Bootstrap/cache configuration | 9 | Safe initial admin creation, cache bounds, lifecycle/isolation |
-| Appointments | 47 | Booking rules, UTC date filters, ownership, status transitions, concurrency |
+| Appointments | 48 | Booking rules, UTC date filters, ownership, status transitions, concurrency |
 | Profiles/accounts | 26 | CRUD, BCrypt registration, duplicate emails, history protection |
 | Authentication/authorization | 31 | Roles, ownership, disabled accounts, generic errors, real CSRF |
 | Relational persistence/cache | 16 | Constraints, relationships, L1/L2 behavior, rollback, cache-off reads |
 | Clinical documents | 38 | Real Mongo persistence, authorship, history, versions, concurrent HTTP writes |
 | DTO validation | 7 | Nested constraints, password byte limit, safe serialization |
-| **Total** | **221** | |
+| **Total** | **228** | |
 
 ## Concurrent cases
 
@@ -99,3 +100,11 @@ Collection exports and connection configuration remain local/ignored as requeste
 The appointment/clinical workflows exercise `healthcare.appointments` and `healthcare.prescriptions`. Match ATTEMPT and outcome lines by request ID. Authentication/CSRF/validation rejected before service invocation does not produce these service-operation entries.
 
 The cache workflow checks warm-read correctness, committed update freshness, permissions, and deletion. Actual hits are proven by Hibernate statistics tests rather than HTTP timing. Tests also verify that disabled user state is not cached and disabling the doctor cache preserves reads.
+
+## Independent chatbot verification
+
+Run `.\mvnw.cmd -f chatbot-service/pom.xml verify` separately. Its fourteen tests use a local provider fixture and verify the requested model name for every role, private service-key enforcement, invalid requests, and `503` on provider failure. The backend adds five remote-client tests. These prove request/response contracts, not actual language-model generation or medical accuracy.
+
+The consolidated Postman regression uses explicit `CHATBOT_MODE=stub` and needs no provider account. Remote assertions check authenticated role, configured model and nonempty output. A separate public API smoke test uses a local provider fixture to verify the independent service and attempts to override role/model from the client. This is protocol verification, not model inference.
+
+Live OpenAI generation has not been tested because no account/API key is configured. Enable remote mode only when credentials and quota are available, following [OpenAI setup](../chatbot-service/README.md). No Ollama installation or model downloads are required.

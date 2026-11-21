@@ -5,6 +5,7 @@ import com.smarthealthcare.dto.BookAppointmentRequest;
 import com.smarthealthcare.entity.Appointment;
 import com.smarthealthcare.entity.AppointmentStatus;
 import com.smarthealthcare.entity.Role;
+import com.smarthealthcare.exception.DoubleBookingException;
 import com.smarthealthcare.exception.InvalidRequestException;
 import com.smarthealthcare.exception.ResourceConflictException;
 import com.smarthealthcare.exception.ResourceNotFoundException;
@@ -16,6 +17,8 @@ import com.smarthealthcare.security.CurrentUser;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -89,10 +92,20 @@ public class AppointmentService {
             throw new ResourceConflictException("Slot is no longer available");
         }
         if (appointments.existsBySlotIdAndStatusNot(slot.getId(), AppointmentStatus.CANCELLED)) {
-            throw new ResourceConflictException("Slot is already booked");
+            throw new DoubleBookingException(slot.getDoctor().getName(), slot.getStartTime());
         }
         // The partial unique index also rejects bookings that race past the availability check.
-        return AppointmentResponse.from(appointments.saveAndFlush(new Appointment(slot, patient)));
+        try {
+            return AppointmentResponse.from(appointments.saveAndFlush(new Appointment(slot, patient)));
+        } catch (DataIntegrityViolationException exception) {
+            for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+                if (cause instanceof ConstraintViolationException constraint
+                        && "uq_appointments_occupied_slot".equals(constraint.getConstraintName())) {
+                    throw new DoubleBookingException(slot.getDoctor().getName(), slot.getStartTime());
+                }
+            }
+            throw exception;
+        }
     }
 
     @Transactional

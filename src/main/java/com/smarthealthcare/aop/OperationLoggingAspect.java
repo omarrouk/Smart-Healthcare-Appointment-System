@@ -1,6 +1,7 @@
 package com.smarthealthcare.aop;
 
 import com.smarthealthcare.exception.InvalidRequestException;
+import com.smarthealthcare.exception.DoubleBookingException;
 import com.smarthealthcare.exception.ResourceConflictException;
 import com.smarthealthcare.exception.ResourceNotFoundException;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -16,12 +17,18 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 
 import java.util.concurrent.TimeUnit;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 @Aspect
 @Component
 // Wrap transaction advice so commit failures cannot be logged as successful writes.
 @Order(0)
 public class OperationLoggingAspect {
+
+    private static final DateTimeFormatter BOOKING_TIME = DateTimeFormatter
+            .ofPattern("hh:mm a 'UTC' '('uuuu-MM-dd')'", Locale.ENGLISH).withZone(ZoneOffset.UTC);
 
     private static final Logger appointments = LoggerFactory.getLogger("healthcare.appointments");
     private static final Logger prescriptions = LoggerFactory.getLogger("healthcare.prescriptions");
@@ -55,8 +62,16 @@ public class OperationLoggingAspect {
             logger.info("requestId={} operation={} outcome=SUCCEEDED durationMs={}", requestId, operation, elapsed(start));
             return result;
         } catch (Throwable failure) {
-            logger.warn("requestId={} operation={} outcome={} errorType={} durationMs={}",
-                    requestId, operation, outcome(failure), failure.getClass().getSimpleName(), elapsed(start));
+            if (failure instanceof DoubleBookingException conflict) {
+                String doctorName = conflict.getDoctorName().replaceAll("[\\p{Cntrl}\\p{Cf}]", " ");
+                logger.warn("requestId={} operation={} outcome=CONFLICT errorType={} durationMs={} "
+                                + "Double booking attempt prevented for {} at {}",
+                        requestId, operation, failure.getClass().getSimpleName(), elapsed(start),
+                        doctorName, BOOKING_TIME.format(conflict.getStartTime()));
+            } else {
+                logger.warn("requestId={} operation={} outcome={} errorType={} durationMs={}",
+                        requestId, operation, outcome(failure), failure.getClass().getSimpleName(), elapsed(start));
+            }
             throw failure;
         }
     }

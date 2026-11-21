@@ -193,6 +193,7 @@ Example PATIENT response:
 ~~~json
 {
   "role":"PATIENT",
+  "model":"stub",
   "reply":"View available slots with GET /api/doctors/{doctorId}/slots, then POST /api/appointments with a slotId. GET /api/appointments/me lists your appointments. An occupied slot returns 409 Conflict."
 }
 ~~~
@@ -200,3 +201,5 @@ Example PATIENT response:
 Messages must be nonblank and at most 1,000 characters. The local stub matches English keywords without case sensitivity, returns role-specific fallback help, and does not echo input or execute actions. Body role/model/ID fields cannot override authentication or retrieve records.
 
 ADMIN help covers doctors, patients, and slots; DOCTOR help covers appointments and authored documents; PATIENT help covers search, booking/cancellation, profile updates, and own history.
+
+Chatbot replies also include a server-selected `model`: `stub` in offline mode, or the configured OpenAI model ID in remote mode. Public clients cannot override role or model. The independent service and private-key configuration are described in [OpenAI setup](../chatbot-service/README.md). A provider outage, missing model, or inference timeout returns `503`; generated replies are workflow guidance and must not be treated as medical advice.

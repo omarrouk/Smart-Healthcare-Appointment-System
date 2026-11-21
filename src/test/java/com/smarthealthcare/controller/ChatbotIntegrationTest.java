@@ -42,7 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "app.bootstrap.admin.enabled=false")
+@SpringBootTest(properties = {"app.bootstrap.admin.enabled=false", "app.chatbot.mode=stub"})
 @AutoConfigureMockMvc
 @Transactional
 class ChatbotIntegrationTest {
@@ -93,7 +93,7 @@ class ChatbotIntegrationTest {
         mvc.perform(post(URL).with(auth(role)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"message\":\"help\",\"role\":\"ADMIN\",\"model\":\"external\",\"patientId\":999}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.role").value(role.name()))
-                .andExpect(jsonPath("$.model").doesNotExist()).andExpect(jsonPath("$.patientId").doesNotExist());
+                .andExpect(jsonPath("$.model").value("stub")).andExpect(jsonPath("$.patientId").doesNotExist());
     }
 
     @ParameterizedTest
@@ -122,7 +122,7 @@ class ChatbotIntegrationTest {
                 .andExpect(status().isOk()).andExpect(content().string(not(containsString(message))))
                 .andExpect(content().string(not(containsString(accounts.get(role).getEmail()))))
                 .andExpect(jsonPath("$.passwordHash").doesNotExist()).andReturn().getResponse();
-        assertThat(mapper.readTree(response.getContentAsString()).size()).isEqualTo(2);
+        assertThat(mapper.readTree(response.getContentAsString()).size()).isEqualTo(3);
     }
 
     @Test

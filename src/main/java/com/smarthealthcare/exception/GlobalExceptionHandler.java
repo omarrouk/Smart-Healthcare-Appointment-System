@@ -40,6 +40,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.NOT_FOUND, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(ChatbotUnavailableException.class)
+    ResponseEntity<ApiError> chatbotUnavailable(ChatbotUnavailableException exception, HttpServletRequest request) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(ResourceConflictException.class)
     ResponseEntity<ApiError> conflict(ResourceConflictException exception, HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, exception.getMessage(), request);

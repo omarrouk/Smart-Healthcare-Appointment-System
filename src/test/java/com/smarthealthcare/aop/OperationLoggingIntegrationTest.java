@@ -121,7 +121,9 @@ class OperationLoggingIntegrationTest {
         assertThat(messages).hasSize(4);
         assertThat(messages.get(0)).contains("operation=book outcome=ATTEMPT");
         assertThat(messages.get(1)).contains("operation=book outcome=SUCCEEDED");
-        assertThat(messages.get(3)).contains("operation=book outcome=CONFLICT");
+        assertThat(messages.get(3)).contains("operation=book outcome=CONFLICT",
+                "Double booking attempt prevented for Logging Doctor at 12:00 AM UTC",
+                slot.getStartTime().toString().substring(0, 10));
         String firstId = requestId(messages.get(0));
         assertThat(UUID.fromString(firstId)).isNotNull();
         assertThat(requestId(messages.get(1))).isEqualTo(firstId);

@@ -2,6 +2,8 @@
 
 Allow approximately seven minutes. Use synthetic accounts and clinical content.
 
+Open the editable [PowerPoint presentation](presentation/Smart-Healthcare-Demo.pptx). It has eleven slides and English speaker notes. See [rebuild instructions](presentation/README.md).
+
 ## Prepare
 
 - Start both databases and the updated app; confirm health returns `200` and `UP`.
@@ -45,12 +47,13 @@ The used clinical doctor/patients cannot be deleted because history is protected
 
 ## Explain the evidence
 
-- 221 Maven tests include real PostgreSQL races and competing MongoDB HTTP updates.
+- 228 backend Maven tests plus 14 independent chatbot-service tests include real PostgreSQL races and competing MongoDB HTTP updates.
 - Two patients racing for one slot produce one `201` and one `409`.
 - Competing clinical updates produce one `200` and one `409` and preserve the winner.
 - Hibernate statistics prove cache hits; faster HTTP timing alone does not.
 - One organized Postman collection covers 194 saved requests and 317 assertions against a packaged application.
-- The chatbot is a local stub. Operation logs are diagnostics, not a persistent audit ledger.
+- `CHATBOT_MODE=remote` uses the independent OpenAI service and selects a configured model per authenticated role. `stub` is explicit offline guidance. See [chatbot setup](../chatbot-service/README.md).
+- Rejected double bookings log the doctor name and UTC appointment time/date. Patient names, credentials, and clinical content remain excluded. Operation logs are diagnostics, not a persistent audit ledger.
 
 ## Questions to prepare for
 
@@ -63,4 +66,4 @@ The used clinical doctor/patients cannot be deleted because history is protected
 | Roles versus ownership? | Role permits the workflow; ownership limits the particular resource. |
 | Why a chatbot interface? | The controller stays independent of a future provider. |
 | What do scopes demonstrate? | Singleton services/cache and one log context per request. |
-| Outside scope? | Frontend, real AI, uploads, full audit retention, and deployment hardening. |
+| Outside scope? | Frontend, clinical AI decisions, uploads, full audit retention, and deployment hardening. |

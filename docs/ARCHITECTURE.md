@@ -9,7 +9,7 @@ flowchart LR
     Controllers --> Services["Services and ownership checks"]
     Services --> JPA["JPA repositories"]
     Services --> Mongo["MongoDB repositories"]
-    Services --> Chatbot["Local chatbot interface"]
+    Services --> Chatbot["Chatbot interface"]
     JPA --> PostgreSQL[("PostgreSQL")]
     JPA --> Cache["Doctor entity cache"]
     Mongo --> Documents[("MongoDB")]
@@ -60,7 +60,7 @@ Admin account management does not imply clinical access. Profile reads allow an 
 
 ## IoC, injection, scopes, and lifecycle
 
-Spring creates beans and supplies constructor dependencies. Controllers request services rather than constructing them. ChatbotController depends on a service interface with one local implementation.
+Spring creates beans and supplies constructor dependencies. Controllers request services rather than constructing them. ChatbotController depends on a service interface; configuration selects either static guidance or the independent service client.
 
 Services/aspects/cache manager use singleton scope: one per context. RequestLogContext uses request scope. Its proxy lets the singleton aspect resolve one UUID per HTTP request. Attempt/outcome IDs match within that request; non-HTTP calls use `none`. See [Spring scopes](https://docs.spring.io/spring-framework/reference/core/beans/factory-scopes.html).
 
@@ -76,7 +76,7 @@ DoctorCacheConfig initializes a bounded cache in a `@Bean` method. `destroyMetho
 | `healthcare.prescriptions` | Creation/updates |
 | `healthcare.cache` | Initialization/bounds |
 
-Operation entries contain request ID, method name, outcome, duration, and exception class. They do not serialize arguments/results or log exception messages, stacks, credentials, or clinical content.
+Operation entries contain request ID, method name, outcome, duration, and exception class. Double-booking conflicts additionally contain the public doctor name and UTC slot time/date; control characters in the name are replaced to prevent log injection. Both the availability check and the occupied-slot database constraint produce this safe conflict context. They do not serialize arguments/results or log exception messages, stacks, credentials, or clinical content.
 
 `@Order(0)` puts logging outside transaction advice. Normal HTTP successes follow the service transaction's commit. Calls joining an outer transaction remain subject to its eventual commit/rollback. These are diagnostics rather than a persistent audit ledger.
 
@@ -96,4 +96,4 @@ Direct SQL or another independently writing process does not broadcast invalidat
 
 ## Chatbot boundary
 
-A switch on the authenticated role chooses static English guidance. The stub has no provider key, external requests, chat storage, or clinical-data access. A future implementation must retain server-side role checks and explicitly decide what outbound information is permitted.
+`CHATBOT_MODE=stub` chooses static English guidance and reports `model: "stub"`. It performs no AI inference. `CHATBOT_MODE=remote` forwards the authenticated role and submitted message to the independent chatbot process with a private service key. That process selects a configurable OpenAI model per role and calls the external API. It has no SQL/MongoDB dependencies or clinical-data tools. Model prompts define workflow guidance, not medical advice or a security boundary. Provider failures become `503` without a silent stub fallback. See [service setup and role mapping](../chatbot-service/README.md).

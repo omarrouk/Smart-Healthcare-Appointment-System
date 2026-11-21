@@ -31,6 +31,10 @@ spring:
     time-zone: UTC
 
 app:
+  chatbot:
+    mode: ${CHATBOT_MODE:stub}
+    service-url: ${CHATBOT_SERVICE_URL:http://127.0.0.1:8090}
+    service-key: ${CHATBOT_SERVICE_KEY:}
   cache:
     doctors:
       max-entries: ${DOCTOR_CACHE_MAX_ENTRIES:1000}

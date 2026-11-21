@@ -1,0 +1,24 @@
+spring:
+  config:
+    import: optional:file:./.env[.properties]
+  application:
+    name: healthcare-chatbot
+server:
+  address: ${CHATBOT_BIND_ADDRESS:127.0.0.1}
+  port: ${CHATBOT_PORT:8090}
+chatbot:
+  service-key: ${CHATBOT_SERVICE_KEY:}
+  openai-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+  openai-api-key: ${OPENAI_API_KEY:}
+  models:
+    admin: ${CHATBOT_ADMIN_MODEL:gpt-4.1-mini}
+    doctor: ${CHATBOT_DOCTOR_MODEL:gpt-4.1}
+    patient: ${CHATBOT_PATIENT_MODEL:gpt-4.1-nano}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
