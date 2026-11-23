@@ -128,8 +128,6 @@ See the [API reference](docs/API.md) for all endpoints, bodies, ownership rules,
 
 - [Architecture](docs/ARCHITECTURE.md): relationships, transactions, concurrency, DI, scopes, lifecycle, AOP, and caching.
 - [Testing](docs/TESTING.md): coverage, fixtures, Postman order, and final results.
-- [Demo guide](docs/DEMO.md): preparation, presentation outline, and expected responses.
-- [PowerPoint slides](docs/presentation/Smart-Healthcare-Demo.pptx): eleven editable slides with English speaker notes.
 - [AI provider setup](chatbot-service/README.md): independent service, role-based model selection, and verification.
 
 ~~~powershell
