@@ -11,7 +11,7 @@ A Spring Boot 3 REST API for managing doctors, patients, appointments, prescript
 - MongoDB clinical documents with author/patient access and optimistic version checks.
 - Local chatbot guidance, AOP operation logs, request-scoped IDs, and doctor caching.
 
-The default offline chatbot uses English keyword rules (`CHATBOT_MODE=stub`). The optional independent [OpenAI service](chatbot-service/README.md) selects an OpenAI model per authenticated role (`CHATBOT_MODE=remote`). It has no clinical-database access. Remote mode sends submitted text to OpenAI; offline mode needs no provider account.
+The default offline chatbot uses English keyword rules (`CHATBOT_MODE=stub`). The optional independent [AI service](chatbot-service/README.md) selects a configured model per authenticated role (`CHATBOT_MODE=remote`). It has no clinical-database access. Remote mode sends submitted text to the configured provider; offline mode needs no provider account.
 
 ## Stack
 
@@ -130,14 +130,15 @@ See the [API reference](docs/API.md) for all endpoints, bodies, ownership rules,
 - [Testing](docs/TESTING.md): coverage, fixtures, Postman order, and final results.
 - [Demo guide](docs/DEMO.md): preparation, presentation outline, and expected responses.
 - [PowerPoint slides](docs/presentation/Smart-Healthcare-Demo.pptx): eleven editable slides with English speaker notes.
-- [OpenAI setup](chatbot-service/README.md): independent service, role-based model selection, and verification.
+- [AI provider setup](chatbot-service/README.md): independent service, role-based model selection, and verification.
 
 ~~~powershell
 docker compose up -d --wait
 .\mvnw.cmd clean verify
+.\mvnw.cmd -f chatbot-service/pom.xml verify
 ~~~
 
-Final regression: **228 backend Maven tests plus 14 independent chatbot-service tests**, with no failures or skipped tests. The main Postman collection contains **194 saved requests and 317 assertions**, organized into six workflows. The testing guide records the tested environment and live checks.
+Final regression: **228 backend Maven tests plus 14 independent chatbot-service tests**, with no failures or skipped tests. The main Postman collection contains **194 saved requests and 317 assertions**, organized into six workflows. The live Groq chatbot workflow also passed 52 assertions with free-tier pacing. The testing guide records the tested environment and live checks.
 
 Doctor caching is local to one process. Hibernate updates/deletes invalidate state; authentication and availability queries are not cached. Disable second-level caching for independently writing instances or out-of-band SQL changes.
 

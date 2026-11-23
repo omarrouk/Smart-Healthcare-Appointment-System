@@ -20,15 +20,21 @@ import java.util.Map;
 public class ModelChatService {
     private final RestClient client;
     private final Map<ChatRequest.Role, String> models;
+    private final int maxCompletionTokens;
 
-    public ModelChatService(RestClient.Builder builder, @Value("${chatbot.openai-url}") String url,
-                            @Value("${chatbot.openai-api-key}") String apiKey,
+    public ModelChatService(RestClient.Builder builder, @Value("${chatbot.api-url}") String url,
+                            @Value("${chatbot.api-key}") String apiKey,
                             @Value("${chatbot.models.admin}") String admin,
                             @Value("${chatbot.models.doctor}") String doctor,
-                            @Value("${chatbot.models.patient}") String patient) {
+                            @Value("${chatbot.models.patient}") String patient,
+                            @Value("${chatbot.max-completion-tokens:256}") int maxCompletionTokens) {
         if (apiKey.isBlank()) {
-            throw new IllegalArgumentException("OPENAI_API_KEY is required for the chatbot service");
+            throw new IllegalArgumentException("CHATBOT_API_KEY is required for the chatbot service");
         }
+        if (maxCompletionTokens < 1 || maxCompletionTokens > 4096) {
+            throw new IllegalArgumentException("CHATBOT_MAX_COMPLETION_TOKENS must be between 1 and 4096");
+        }
+        this.maxCompletionTokens = maxCompletionTokens;
         models = Map.of(ChatRequest.Role.ADMIN, admin, ChatRequest.Role.DOCTOR, doctor, ChatRequest.Role.PATIENT, patient);
         if (models.values().stream().anyMatch(String::isBlank)) {
             throw new IllegalArgumentException("A model must be configured for each role");
@@ -37,7 +43,8 @@ public class ModelChatService {
                 .connectTimeout(Duration.ofSeconds(3)).build());
         factory.setReadTimeout(Duration.ofSeconds(60));
         client = builder.baseUrl(url).requestFactory(factory)
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey).build();
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .defaultHeader(HttpHeaders.USER_AGENT, "SmartHealthcareChatbot/1.0").build();
     }
 
     public ChatResponse reply(ChatRequest request) {
@@ -55,7 +62,7 @@ public class ModelChatService {
         try {
             var result = client.post().uri("/chat/completions").body(new ModelRequest(model,
                     List.of(new Message("system", instructions), new Message("user", request.message())),
-                    false, false, 256))
+                    false, false, maxCompletionTokens))
                     .retrieve().body(ModelResponse.class);
             if (result == null || result.choices() == null || result.choices().isEmpty()
                     || result.choices().get(0) == null || result.choices().get(0).message() == null) {

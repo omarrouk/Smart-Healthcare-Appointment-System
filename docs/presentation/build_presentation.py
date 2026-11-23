@@ -74,7 +74,7 @@ def cards(page, entries, y=2.25):
 
 
 page = slide('Smart Healthcare\nAppointment System', 'Spring Boot REST API',
-             'Introduce appointment scheduling and patient-record protection. Explain the implemented features and distinguish actual OpenAI inference from offline demonstration mode.')
+             'Introduce appointment scheduling and patient-record protection. Explain the implemented features and distinguish actual provider inference from offline demonstration mode.')
 text(page, 'Scheduling with database guarantees.\nClinical history with ownership checks.\nExternal AI behind an independent service.', 0.7, 3.0, 7.2, 2.2, 24, GREY)
 box(page, 9.1, 2.25, 3.45, 3.6, INK, True)
 text(page, 'JAVA 17\nSPRING BOOT 3\nPOSTGRESQL + MONGODB', 9.4, 2.8, 2.9, 2.2, 21, WHITE, True)
@@ -86,10 +86,10 @@ cards(page, [('ADMIN', 'Register and manage accounts.\nMaintain doctors and slot
              ('PATIENT', 'Search by specialty.\nBook or cancel own visits.\nRead own clinical history.')])
 
 page = slide('One API, two data stores, independent AI', 'Architecture',
-             'Trace requests through security and application services. The chatbot runs in a separate process without patient-database access. The independent service calls OpenAI over HTTPS when remote mode is enabled.')
+             'Trace requests through security and application services. The chatbot runs in a separate process without patient-database access. The independent service calls the configured provider over HTTPS when remote mode is enabled.')
 nodes = [('HTTP CLIENT', 0.65, 2.45, 2.3, INK), ('HEALTHCARE API', 3.45, 2.45, 3.1, TEAL),
          ('POSTGRESQL', 8.0, 2.0, 4.1, INK), ('MONGODB', 8.0, 3.2, 4.1, INK),
-         ('CHATBOT SERVICE', 3.45, 4.65, 3.1, TEAL), ('OPENAI API', 8.0, 4.65, 4.1, INK)]
+         ('CHATBOT SERVICE', 3.45, 4.65, 3.1, TEAL), ('GROQ API', 8.0, 4.65, 4.1, INK)]
 for label, x, y, w, color in nodes:
     box(page, x, y, w, 0.8, color, True)
     text(page, label, x + 0.12, y + 0.2, w - 0.24, 0.4, 17, WHITE, True)
@@ -136,11 +136,11 @@ cards(page, [('IoC AND SCOPES', 'Constructor injection.\nSingleton application s
              ('AOP', 'Attempts and outcomes.\nTransaction-aware logging.\nOriginal exceptions preserved.'),
              ('HIBERNATE CACHE', 'L1 persistence context.\nBounded doctor L2 cache.\nCommitted writes refresh data.')])
 
-page = slide('Authenticated role selects an OpenAI model', 'Independent chatbot service',
-             'Show that the authenticated account determines the role. The independent service selects the configured model and calls the external OpenAI API. It cannot execute application actions; its intended scope is workflow guidance, not diagnosis.')
-cards(page, [('ADMIN', 'gpt-4.1-mini\nAccount and slot workflow guidance.'),
-             ('DOCTOR', 'gpt-4.1\nAppointment and document workflow guidance.'),
-             ('PATIENT', 'gpt-4.1-nano\nBooking and personal-history guidance.')])
+page = slide('Authenticated role selects an AI model', 'Independent chatbot service',
+             'Show that the authenticated account determines the role. The independent service selects the configured model and calls the external provider API. It cannot execute application actions; its intended scope is workflow guidance, not diagnosis.')
+cards(page, [('ADMIN', 'openai/gpt-oss-20b\nAccount and slot workflow guidance.'),
+             ('DOCTOR', 'openai/gpt-oss-120b\nAppointment and document workflow guidance.'),
+             ('PATIENT', 'qwen/qwen3.8-27b\nBooking and personal-history guidance.')])
 text(page, 'Private service key  |  External inference  |  Configurable models  |  No clinical database access', 0.75, 6.25, 12, 0.55, 16, GREY)
 
 
@@ -154,14 +154,14 @@ chat_tests = test_count(ROOT / 'chatbot-service/target/surefire-reports')
 verification_path = ROOT / '.run/review-points-verification.json'
 verification = json.loads(verification_path.read_text(encoding='utf-8-sig')) if verification_path.exists() else {}
 page = slide('Evidence from tests and live requests', 'Verification',
-             'Use recorded test results as evidence. Distinguish provider-fixture protocol checks from actual OpenAI generation. Do not claim an inference result that has not been verified.')
+             'Use recorded test results as evidence. Distinguish provider-fixture protocol checks from actual provider generation. Do not claim an inference result that has not been verified.')
 cards(page, [('BACKEND TESTS', f'{main_tests} tests\nReal PostgreSQL/MongoDB cases.\nOwnership and concurrent writes.'),
              ('CHATBOT SERVICE', f'{chat_tests} tests\nModel routing and private key.\nProvider failure handling.'),
-             ('LIVE CHECKS', verification.get('summary', 'OpenAI generation is awaiting verification.\nSee TESTING.md for current evidence.'))])
+             ('LIVE CHECKS', verification.get('summary', 'Provider generation is awaiting verification.\nSee TESTING.md for current evidence.'))])
 
 page = slide('Demonstrate the complete journey', 'Seven-minute walkthrough',
-             'Finish with conflicting bookings, appointment completion, prescription creation and patient history. Demonstrate OpenAI inference only after configuring an OpenAI account, API key, and model access. This is an educational project, and generated guidance must not be treated as medical advice.')
-text(page, '1   Admin creates doctor, patient and slot.\n2   Patient books; a second booking is rejected and logged.\n3   Doctor opens the schedule and completes the visit.\n4   Doctor creates a prescription; patient reads own history.\n5   Ask the OpenAI service as each role and inspect the selected model.', 0.85, 2.2, 11.5, 3.55, 23)
+             'Finish with conflicting bookings, appointment completion, prescription creation and patient history. Demonstrate Groq inference with synthetic messages and inspect the server-selected model. This is an educational project, and generated guidance must not be treated as medical advice.')
+text(page, '1   Admin creates doctor, patient and slot.\n2   Patient books; a second booking is rejected and logged.\n3   Doctor opens the schedule and completes the visit.\n4   Doctor creates a prescription; patient reads own history.\n5   Ask the AI service as each role and inspect the selected model.', 0.85, 2.2, 11.5, 3.55, 23)
 box(page, 0.7, 6.0, 11.95, 0.65, TEAL, True)
 text(page, 'Project scope: educational REST API; no frontend or autonomous clinical decisions.', 0.95, 6.15, 11.4, 0.4, 17, WHITE)
 

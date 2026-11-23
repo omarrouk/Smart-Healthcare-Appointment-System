@@ -52,7 +52,7 @@ The used clinical doctor/patients cannot be deleted because history is protected
 - Competing clinical updates produce one `200` and one `409` and preserve the winner.
 - Hibernate statistics prove cache hits; faster HTTP timing alone does not.
 - One organized Postman collection covers 194 saved requests and 317 assertions against a packaged application.
-- `CHATBOT_MODE=remote` uses the independent OpenAI service and selects a configured model per authenticated role. `stub` is explicit offline guidance. See [chatbot setup](../chatbot-service/README.md).
+- `CHATBOT_MODE=remote` uses the independent AI service and selects a configured model per authenticated role. `stub` is explicit offline guidance. See [chatbot setup](../chatbot-service/README.md).
 - Rejected double bookings log the doctor name and UTC appointment time/date. Patient names, credentials, and clinical content remain excluded. Operation logs are diagnostics, not a persistent audit ledger.
 
 ## Questions to prepare for

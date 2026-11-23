@@ -2,7 +2,7 @@
 
 ## Final results
 
-Verified on 2026-11-21 with Java 17.0.17, the Maven wrapper, PostgreSQL 17, MongoDB 8.0, and Docker Desktop.
+Verified on 2026-11-23 with Java 17.0.17, the Maven wrapper, PostgreSQL 17, MongoDB 8.0, and Docker Desktop.
 
 | Check | Result |
 | --- | --- |
@@ -12,6 +12,7 @@ Verified on 2026-11-21 with Java 17.0.17, the Maven wrapper, PostgreSQL 17, Mong
 | Independent chatbot service | 14 passing tests; separate Maven build |
 | One organized Postman collection | 194 saved requests, 317 passing assertions |
 | Live HTTP requests | 301, including automatic CSRF fetches |
+| Groq chatbot workflow with pacing | 29 saved requests, 54 HTTP requests, 52 passing assertions |
 | Dedicated operation-log check | 46 entries verified for expected outcomes and absence of clinical content |
 | Packaged application | Started successfully against temporary PostgreSQL/MongoDB |
 | Temporary live-test resources | Application, containers, and credential files cleaned up |
@@ -105,6 +106,19 @@ The cache workflow checks warm-read correctness, committed update freshness, per
 
 Run `.\mvnw.cmd -f chatbot-service/pom.xml verify` separately. Its fourteen tests use a local provider fixture and verify the requested model name for every role, private service-key enforcement, invalid requests, and `503` on provider failure. The backend adds five remote-client tests. These prove request/response contracts, not actual language-model generation or medical accuracy.
 
-The consolidated Postman regression uses explicit `CHATBOT_MODE=stub` and needs no provider account. Remote assertions check authenticated role, configured model and nonempty output. A separate public API smoke test uses a local provider fixture to verify the independent service and attempts to override role/model from the client. This is protocol verification, not model inference.
+The consolidated Postman regression uses explicit `CHATBOT_MODE=stub` and needs no provider account. Remote assertions check authenticated role, configured model and nonempty output. A separate public API smoke test uses a local provider fixture to verify the independent service and attempts to override role/model from the client. This is protocol verification, not model inference. On 2026-11-23, an additional isolated check simulated OpenAI `429 credit_balance_exhausted` and verified that ADMIN, DOCTOR, and PATIENT requests each received the safe public `503` response without provider diagnostic content.
 
-Live OpenAI generation has not been tested because no account/API key is configured. Enable remote mode only when credentials and quota are available, following [OpenAI setup](../chatbot-service/README.md). No Ollama installation or model downloads are required.
+On 2026-11-23, a live OpenAI request returned `429 credit_balance_exhausted` with a $0.00 trial balance. Authentication was accepted; successful live generation remains unverified. Enable remote mode only when credentials and quota are available, following [OpenAI setup](../chatbot-service/README.md). No Ollama installation or model downloads are required.
+
+
+## Live Groq verification
+
+Provider configuration uses `CHATBOT_API_KEY` and `CHATBOT_API_URL`; `CHATBOT_SERVICE_KEY` still protects the internal service connection. Automated fixtures use dummy credentials. The configured Groq reasoning models use `CHATBOT_MAX_COMPLETION_TOKENS=1024`; the default remains 256. The service tests verify that the configured completion limit is forwarded to the provider.
+
+On 2026-11-23, the packaged healthcare API and independent chatbot service passed a live test against Groq using synthetic accounts and messages. ADMIN selected `openai/gpt-oss-20b`, DOCTOR selected `openai/gpt-oss-120b`, and PATIENT selected `qwen/qwen3.8-27b`. All three returned nonempty generated replies. Client-supplied role/model fields could not override the authenticated role or configured model. Temporary application processes, databases, and credential files were cleaned up. The independent service suite also passed all 14 tests after adding a descriptive HTTP client header.
+
+These checks demonstrate connectivity and role-based routing, not medical accuracy. Groq model availability and quotas depend on the account. OpenAI's separate zero-credit limitation does not prevent using Groq. See [Groq configuration](../chatbot-service/README.md#groq-configuration). The connected Healthcare environment contains `healthcareChatbotAdminModel`, `healthcareChatbotDoctorModel`, and `healthcareChatbotPatientModel` with the configured Groq model IDs. An optional `healthcareChatbotDelayMs=10000` spaces chatbot requests for free-tier testing; set it to `0` for offline runs. Burst tests observed Groq `429 rate_limit_exceeded`, which correctly becomes public `503` without leaking provider diagnostics.
+
+The optional `healthcareChatbotDelayMs` Postman environment variable spaces chatbot POST requests for free-tier live runs. The Healthcare environment uses `10000` milliseconds; use `0` in offline mode. This runner setting does not change application behavior or treat provider failures as successful replies.
+
+After the provider-setting rename, backend verification passed 228 tests and the independent service passed 14 tests. The complete offline collection passed all 317 assertions. The live Groq chatbot workflow passed all 52 assertions across 54 HTTP requests with a 10-second request delay and a 1024-token completion budget. These are separate runs; the 317-assertion regression used offline mode.

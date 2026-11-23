@@ -8,8 +8,9 @@ server:
   port: ${CHATBOT_PORT:8090}
 chatbot:
   service-key: ${CHATBOT_SERVICE_KEY:}
-  openai-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
-  openai-api-key: ${OPENAI_API_KEY:}
+  api-url: ${CHATBOT_API_URL:https://api.openai.com/v1}
+  api-key: ${CHATBOT_API_KEY:}
+  max-completion-tokens: ${CHATBOT_MAX_COMPLETION_TOKENS:256}
   models:
     admin: ${CHATBOT_ADMIN_MODEL:gpt-4.1-mini}
     doctor: ${CHATBOT_DOCTOR_MODEL:gpt-4.1}

@@ -28,8 +28,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = {"chatbot.service-key=test-service-key", "chatbot.openai-api-key=test-provider-key", "chatbot.models.admin=admin-model",
-        "chatbot.models.doctor=doctor-model", "chatbot.models.patient=patient-model"})
+@SpringBootTest(properties = {"chatbot.service-key=test-service-key", "chatbot.api-key=test-provider-key", "chatbot.models.admin=admin-model",
+        "chatbot.max-completion-tokens=1024", "chatbot.models.doctor=doctor-model", "chatbot.models.patient=patient-model"})
 @AutoConfigureMockMvc
 class ChatbotIntegrationTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -53,7 +53,7 @@ class ChatbotIntegrationTest {
             exchange.close();
         });
         provider.start();
-        registry.add("chatbot.openai-url", () -> "http://127.0.0.1:" + provider.getAddress().getPort() + "/v1");
+        registry.add("chatbot.api-url", () -> "http://127.0.0.1:" + provider.getAddress().getPort() + "/v1");
     }
 
     @BeforeEach
@@ -81,7 +81,7 @@ class ChatbotIntegrationTest {
                 .andExpect(jsonPath("$.reply").value("Generated workflow guidance"));
         assertThat(received.get().get("model").asText()).isEqualTo(model);
         assertThat(received.get().get("stream").asBoolean()).isFalse();
-        assertThat(received.get().get("max_completion_tokens").asInt()).isEqualTo(256);
+        assertThat(received.get().get("max_completion_tokens").asInt()).isEqualTo(1024);
         assertThat(received.get().get("store").asBoolean()).isFalse();
         assertThat(authorization.get()).isEqualTo("Bearer test-provider-key");
         assertThat(received.get().toString()).doesNotContain("test-service-key", "test-provider-key");
